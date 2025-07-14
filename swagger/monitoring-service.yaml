@@ -1,0 +1,1030 @@
+openapi: 3.0.3
+info:
+  title: Monitoring Service API
+  description: |
+    Microservice responsible for competitor monitoring, analytics tracking, and performance metrics.
+    This service handles competitor analysis, URL monitoring, and data collection.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5007/api/v1
+    description: Development server
+  - url: https://api.company.com/monitoring/v1
+    description: Production server
+
+tags:
+  - name: Competitors
+    description: Competitor management
+  - name: Monitoring
+    description: URL monitoring operations
+  - name: Analytics
+    description: Analytics and metrics
+  - name: Selectors
+    description: Content selector management
+
+paths:
+  /competitors:
+    get:
+      tags:
+        - Competitors
+      summary: List competitors
+      description: Get all competitors with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          description: Search competitor domain names
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Competitors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Competitor'
+
+    post:
+      tags:
+        - Competitors
+      summary: Add competitor
+      description: Add a new competitor for monitoring
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompetitorRequest'
+      responses:
+        '201':
+          description: Competitor added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Competitor'
+
+  /competitors/{competitor_id}:
+    get:
+      tags:
+        - Competitors
+      summary: Get competitor by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Competitor retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompetitorDetail'
+
+    put:
+      tags:
+        - Competitors
+      summary: Update competitor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompetitorRequest'
+      responses:
+        '200':
+          description: Competitor updated successfully
+
+    delete:
+      tags:
+        - Competitors
+      summary: Delete competitor
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Competitor deleted successfully
+
+  /competitors/{competitor_id}/mappings:
+    get:
+      tags:
+        - Monitoring
+      summary: List competitor domain mappings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Mappings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompetitorDomainMapping'
+
+    post:
+      tags:
+        - Monitoring
+      summary: Create competitor domain mapping
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMappingRequest'
+      responses:
+        '201':
+          description: Mapping created successfully
+
+  /competitors/{competitor_id}/urls:
+    get:
+      tags:
+        - Monitoring
+      summary: List competitor URLs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, completed, failed]
+      responses:
+        '200':
+          description: URLs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompetitorSelectedURL'
+
+    post:
+      tags:
+        - Monitoring
+      summary: Add competitor URL
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddURLRequest'
+      responses:
+        '201':
+          description: URL added successfully
+
+  /competitors/{competitor_id}/urls/{url_id}/selectors:
+    get:
+      tags:
+        - Selectors
+      summary: Get URL selectors
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: url_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Selectors retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleURLSelector'
+
+    post:
+      tags:
+        - Selectors
+      summary: Create URL selectors
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: url_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSelectorsRequest'
+      responses:
+        '201':
+          description: Selectors created successfully
+
+  /monitoring/start:
+    post:
+      tags:
+        - Monitoring
+      summary: Start monitoring
+      description: Start monitoring process for competitors
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - competitor_mapping_id
+              properties:
+                competitor_mapping_id:
+                  type: string
+                  format: uuid
+                force_restart:
+                  type: boolean
+                  default: false
+      responses:
+        '202':
+          description: Monitoring started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Monitoring started"
+                  job_id:
+                    type: string
+                    format: uuid
+
+  /monitoring/stop:
+    post:
+      tags:
+        - Monitoring
+      summary: Stop monitoring
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - competitor_mapping_id
+              properties:
+                competitor_mapping_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Monitoring stopped successfully
+
+  /analytics:
+    get:
+      tags:
+        - Analytics
+      summary: Get analytics data
+      description: Retrieve analytics metrics for domains
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: query
+          description: Filter by domain
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          description: Filter by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: start_date
+          in: query
+          description: Start date for analytics
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: End date for analytics
+          schema:
+            type: string
+            format: date
+        - name: metric_type
+          in: query
+          description: Type of metrics
+          schema:
+            type: string
+            enum: [analytics, console]
+      responses:
+        '200':
+          description: Analytics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsData'
+
+  /console-metrics:
+    get:
+      tags:
+        - Analytics
+      summary: Get search console metrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: device
+          in: query
+          schema:
+            type: string
+            enum: [desktop, mobile, tablet]
+        - name: country
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Console metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConsoleMetric'
+
+  /analytics/import:
+    post:
+      tags:
+        - Analytics
+      summary: Import analytics data
+      description: Import analytics data from external sources
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - domain_id
+                - data_source
+              properties:
+                domain_id:
+                  type: string
+                  format: uuid
+                data_source:
+                  type: string
+                  enum: [google_analytics, search_console]
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+      responses:
+        '202':
+          description: Import queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Analytics import queued"
+
+  /statistics/daily:
+    get:
+      tags:
+        - Analytics
+      summary: Get daily statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: competitor_url_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Daily statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompetitorURLDailyStats'
+
+components:
+  schemas:
+    Competitor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        competitor_domain_name:
+          type: string
+          example: "competitor.com"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CompetitorDetail:
+      allOf:
+        - $ref: '#/components/schemas/Competitor'
+        - type: object
+          properties:
+            total_urls:
+              type: integer
+              example: 150
+            active_mappings:
+              type: integer
+              example: 3
+            last_monitoring_date:
+              type: string
+              format: date-time
+              example: "2024-01-15T10:30:00Z"
+
+    CreateCompetitorRequest:
+      type: object
+      required:
+        - competitor_domain_name
+      properties:
+        competitor_domain_name:
+          type: string
+          example: "newcompetitor.com"
+
+    UpdateCompetitorRequest:
+      type: object
+      properties:
+        competitor_domain_name:
+          type: string
+          example: "updatedcompetitor.com"
+
+    CompetitorDomainMapping:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        domain_id:
+          type: string
+          example: "domain_123"
+        workspace_id:
+          type: string
+          example: "workspace_123"
+        competitor_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        competitor_type:
+          type: string
+          enum: [sitemap, category]
+          example: "sitemap"
+        interval:
+          type: integer
+          example: 30
+        interval_unit:
+          type: string
+          enum: [minute, hour, day]
+          example: "minute"
+        wp_status:
+          type: string
+          example: "draft"
+        article_status:
+          type: string
+          example: "initiate"
+        created_by:
+          type: string
+          example: "user_123"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateMappingRequest:
+      type: object
+      required:
+        - domain_id
+        - workspace_id
+        - competitor_type
+        - interval
+        - interval_unit
+      properties:
+        domain_id:
+          type: string
+        workspace_id:
+          type: string
+        competitor_type:
+          type: string
+          enum: [sitemap, category]
+        interval:
+          type: integer
+          minimum: 1
+        interval_unit:
+          type: string
+          enum: [minute, hour, day]
+        wp_status:
+          type: string
+          default: "draft"
+        article_status:
+          type: string
+          default: "initiate"
+        article_priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+
+    CompetitorSelectedURL:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        competitor_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        selected_url:
+          type: string
+          example: "https://competitor.com/category/technology"
+        competitor_domain_mapping_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        monitor_enabled:
+          type: boolean
+          example: true
+        scrap_status:
+          type: string
+          enum: [pending, in_progress, completed, failed]
+          example: "completed"
+        responses_status_code:
+          type: integer
+          example: 200
+        extraction_method:
+          type: string
+          enum: [loadmore, nxtbtn, manual]
+          example: "manual"
+        check_method:
+          type: string
+          enum: [requests, selenium]
+          example: "requests"
+        proxy:
+          type: string
+          example: "http://proxy.example.com:8080"
+        last_api_call_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        next_api_call_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T11:00:00Z"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    AddURLRequest:
+      type: object
+      required:
+        - selected_url
+        - competitor_domain_mapping_id
+      properties:
+        selected_url:
+          type: string
+          example: "https://competitor.com/category/tech"
+        competitor_domain_mapping_id:
+          type: string
+          format: uuid
+        monitor_enabled:
+          type: boolean
+          default: true
+        extraction_method:
+          type: string
+          enum: [loadmore, nxtbtn, manual]
+          default: manual
+        check_method:
+          type: string
+          enum: [requests, selenium]
+          default: requests
+        proxy:
+          type: string
+
+    ArticleURLSelector:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        competitor_article_url_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        competitor_selected_url_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        source_title:
+          type: object
+          example: {"selector": "h1", "attribute": "text"}
+        source_content:
+          type: object
+          example: {"selector": ".content", "attribute": "html"}
+        source_featured_image:
+          type: object
+          example: {"selector": ".featured-image img", "attribute": "src"}
+        source_author:
+          type: object
+          example: {"selector": ".author", "attribute": "text"}
+        source_published_date:
+          type: object
+          example: {"selector": ".date", "attribute": "text"}
+        source_categories:
+          type: object
+          example: {"selector": ".categories a", "attribute": "text"}
+        source_tags:
+          type: object
+          example: {"selector": ".tags a", "attribute": "text"}
+        source_meta_description:
+          type: object
+          example: {"selector": "meta[name='description']", "attribute": "content"}
+        source_meta_keywords:
+          type: object
+          example: {"selector": "meta[name='keywords']", "attribute": "content"}
+        source_meta_title:
+          type: object
+          example: {"selector": "title", "attribute": "text"}
+        is_verified:
+          type: boolean
+          example: false
+        verified_by:
+          type: string
+          example: "user_123"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateSelectorsRequest:
+      type: object
+      properties:
+        source_title:
+          type: object
+          example: {"selector": "h1", "attribute": "text"}
+        source_content:
+          type: object
+          example: {"selector": ".content", "attribute": "html"}
+        source_featured_image:
+          type: object
+          example: {"selector": ".featured-image img", "attribute": "src"}
+        source_author:
+          type: object
+          example: {"selector": ".author", "attribute": "text"}
+        source_published_date:
+          type: object
+          example: {"selector": ".date", "attribute": "text"}
+        source_categories:
+          type: object
+          example: {"selector": ".categories a", "attribute": "text"}
+        source_tags:
+          type: object
+          example: {"selector": ".tags a", "attribute": "text"}
+
+    AnalyticsData:
+      type: object
+      properties:
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        date_range:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+        analytics_metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnalyticsMetric'
+        console_metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsoleMetric'
+
+    AnalyticsMetric:
+      type: object
+      properties:
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        date:
+          type: string
+          format: date
+          example: "2024-01-15"
+        page:
+          type: string
+          example: "/blog/seo-tips"
+        active_users:
+          type: integer
+          example: 150
+        new_users:
+          type: integer
+          example: 45
+        average_session_duration:
+          type: number
+          format: float
+          example: 185.5
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    ConsoleMetric:
+      type: object
+      properties:
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        query:
+          type: string
+          example: "seo best practices"
+        page:
+          type: string
+          example: "/blog/seo-tips"
+        country:
+          type: string
+          example: "USA"
+        device:
+          type: string
+          example: "desktop"
+        date:
+          type: string
+          format: date
+          example: "2024-01-15"
+        clicks:
+          type: integer
+          example: 25
+        ctr:
+          type: number
+          format: float
+          example: 2.5
+        impression:
+          type: integer
+          example: 1000
+        position:
+          type: number
+          format: float
+          example: 8.5
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CompetitorURLDailyStats:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        competitor_selected_url_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        stat_date:
+          type: string
+          format: date
+          example: "2024-01-15"
+        total_runs:
+          type: integer
+          example: 24
+        successful_runs:
+          type: integer
+          example: 22
+        failed_runs:
+          type: integer
+          example: 2
+        total_articles_found:
+          type: integer
+          example: 45
+        new_articles_added:
+          type: integer
+          example: 8
+        duplicate_articles_skipped:
+          type: integer
+          example: 37
+        total_response_time_ms:
+          type: integer
+          example: 15000
+        fastest_response_ms:
+          type: integer
+          example: 500
+        slowest_response_ms:
+          type: integer
+          example: 2000
+        error_count:
+          type: integer
+          example: 2
+        last_error_message:
+          type: string
+          example: "Connection timeout"
+        first_run_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T00:00:00Z"
+        last_run_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T23:30:00Z"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T00:00:00Z"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"competitor_domain_name": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

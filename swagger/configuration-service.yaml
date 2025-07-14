@@ -1,0 +1,938 @@
+openapi: 3.0.3
+info:
+  title: Configuration Service API
+  description: |
+    Microservice responsible for system-wide configuration management, feature flags, and environment settings.
+    This service handles non-AI configurations, system parameters, and application settings.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5010/api/v1
+    description: Development server
+  - url: https://api.company.com/configuration/v1
+    description: Production server
+
+tags:
+  - name: System Config
+    description: System-level configuration management
+  - name: Feature Flags
+    description: Feature flag management
+  - name: Environment
+    description: Environment-specific settings
+  - name: Cache
+    description: Configuration cache management
+
+paths:
+  /system-config:
+    get:
+      tags:
+        - System Config
+      summary: List system configurations
+      description: Get all system configuration settings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          description: Filter by configuration category
+          schema:
+            type: string
+            enum: [database, redis, email, storage, security, api_limits, ui]
+        - name: environment
+          in: query
+          description: Filter by environment
+          schema:
+            type: string
+            enum: [development, staging, production]
+        - name: active
+          in: query
+          description: Filter by active status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: System configurations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemConfig'
+
+    post:
+      tags:
+        - System Config
+      summary: Create system configuration
+      description: Add a new system configuration setting
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSystemConfigRequest'
+      responses:
+        '201':
+          description: System configuration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfig'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /system-config/{config_id}:
+    get:
+      tags:
+        - System Config
+      summary: Get system configuration by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: System configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfig'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - System Config
+      summary: Update system configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSystemConfigRequest'
+      responses:
+        '200':
+          description: System configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfig'
+
+    delete:
+      tags:
+        - System Config
+      summary: Delete system configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: System configuration deleted successfully
+
+  /system-config/by-key/{config_key}:
+    get:
+      tags:
+        - System Config
+      summary: Get configuration by key
+      description: Retrieve configuration value by key name
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_key
+          in: path
+          required: true
+          description: Configuration key name
+          schema:
+            type: string
+            example: "MAX_ARTICLES_PER_USER"
+        - name: environment
+          in: query
+          description: Environment context
+          schema:
+            type: string
+            enum: [development, staging, production]
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemConfig'
+
+  /feature-flags:
+    get:
+      tags:
+        - Feature Flags
+      summary: List feature flags
+      description: Get all feature flags with their status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environment
+          in: query
+          schema:
+            type: string
+            enum: [development, staging, production]
+        - name: service
+          in: query
+          description: Filter by service
+          schema:
+            type: string
+        - name: enabled
+          in: query
+          description: Filter by enabled status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Feature flags retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureFlag'
+
+    post:
+      tags:
+        - Feature Flags
+      summary: Create feature flag
+      description: Create a new feature flag
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFeatureFlagRequest'
+      responses:
+        '201':
+          description: Feature flag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlag'
+
+  /feature-flags/{flag_id}:
+    get:
+      tags:
+        - Feature Flags
+      summary: Get feature flag by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Feature flag retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlag'
+
+    put:
+      tags:
+        - Feature Flags
+      summary: Update feature flag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFeatureFlagRequest'
+      responses:
+        '200':
+          description: Feature flag updated successfully
+
+    delete:
+      tags:
+        - Feature Flags
+      summary: Delete feature flag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: flag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Feature flag deleted successfully
+
+  /feature-flags/check/{flag_key}:
+    get:
+      tags:
+        - Feature Flags
+      summary: Check feature flag status
+      description: Check if a feature flag is enabled
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: flag_key
+          in: path
+          required: true
+          description: Feature flag key
+          schema:
+            type: string
+            example: "ENABLE_NEW_EDITOR"
+        - name: user_id
+          in: query
+          description: User ID for user-specific flags
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          description: Workspace ID for workspace-specific flags
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Feature flag status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flag_key:
+                    type: string
+                    example: "ENABLE_NEW_EDITOR"
+                  enabled:
+                    type: boolean
+                    example: true
+                  value:
+                    type: string
+                    example: "variant_a"
+                  metadata:
+                    type: object
+                    example: {"rollout_percentage": 50}
+
+  /environment:
+    get:
+      tags:
+        - Environment
+      summary: Get environment settings
+      description: Retrieve environment-specific configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environment
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [development, staging, production]
+      responses:
+        '200':
+          description: Environment settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentConfig'
+
+  /environment/variables:
+    get:
+      tags:
+        - Environment
+      summary: List environment variables
+      description: Get all environment variables for current environment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: query
+          description: Filter by service
+          schema:
+            type: string
+        - name: category
+          in: query
+          description: Filter by category
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Environment variables retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EnvironmentVariable'
+
+    post:
+      tags:
+        - Environment
+      summary: Create environment variable
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEnvironmentVariableRequest'
+      responses:
+        '201':
+          description: Environment variable created successfully
+
+  /cache/clear:
+    post:
+      tags:
+        - Cache
+      summary: Clear configuration cache
+      description: Clear all cached configuration data
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cache_type:
+                  type: string
+                  enum: [all, system_config, feature_flags, environment]
+                  default: all
+                service:
+                  type: string
+                  description: Clear cache for specific service
+      responses:
+        '200':
+          description: Cache cleared successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Configuration cache cleared successfully"
+                  cleared_entries:
+                    type: integer
+                    example: 125
+
+  /cache/stats:
+    get:
+      tags:
+        - Cache
+      summary: Get cache statistics
+      description: Retrieve cache performance statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cache statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_entries:
+                    type: integer
+                    example: 250
+                  hit_rate:
+                    type: number
+                    format: float
+                    example: 98.5
+                  miss_rate:
+                    type: number
+                    format: float
+                    example: 1.5
+                  cache_size_mb:
+                    type: number
+                    format: float
+                    example: 15.2
+                  last_cleared:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T08:00:00Z"
+
+  /backup:
+    post:
+      tags:
+        - System Config
+      summary: Create configuration backup
+      description: Create a backup of all configuration data
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                include_sensitive:
+                  type: boolean
+                  default: false
+                  description: Include sensitive configuration data
+                backup_name:
+                  type: string
+                  example: "pre-deployment-backup"
+      responses:
+        '201':
+          description: Backup created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backup_id:
+                    type: string
+                    format: uuid
+                  backup_name:
+                    type: string
+                  file_size_bytes:
+                    type: integer
+                  created_date:
+                    type: string
+                    format: date-time
+
+  /backup/{backup_id}/restore:
+    post:
+      tags:
+        - System Config
+      summary: Restore configuration from backup
+      description: Restore configuration from a specific backup
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: backup_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Configuration restored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Configuration restored successfully"
+                  restored_configs:
+                    type: integer
+                    example: 45
+
+components:
+  schemas:
+    SystemConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        config_key:
+          type: string
+          example: "MAX_ARTICLES_PER_USER"
+        config_value:
+          type: string
+          example: "1000"
+        data_type:
+          type: string
+          enum: [string, integer, float, boolean, json]
+          example: "integer"
+        category:
+          type: string
+          enum: [database, redis, email, storage, security, api_limits, ui]
+          example: "api_limits"
+        description:
+          type: string
+          example: "Maximum number of articles per user"
+        environment:
+          type: string
+          enum: [development, staging, production, all]
+          example: "all"
+        is_sensitive:
+          type: boolean
+          example: false
+        is_readonly:
+          type: boolean
+          example: false
+        active:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateSystemConfigRequest:
+      type: object
+      required:
+        - config_key
+        - config_value
+        - data_type
+        - category
+      properties:
+        config_key:
+          type: string
+          example: "MAX_WORKSPACE_DOMAINS"
+        config_value:
+          type: string
+          example: "10"
+        data_type:
+          type: string
+          enum: [string, integer, float, boolean, json]
+        category:
+          type: string
+          enum: [database, redis, email, storage, security, api_limits, ui]
+        description:
+          type: string
+          example: "Maximum domains per workspace"
+        environment:
+          type: string
+          enum: [development, staging, production, all]
+          default: all
+        is_sensitive:
+          type: boolean
+          default: false
+        is_readonly:
+          type: boolean
+          default: false
+
+    UpdateSystemConfigRequest:
+      type: object
+      properties:
+        config_value:
+          type: string
+        description:
+          type: string
+        is_sensitive:
+          type: boolean
+        is_readonly:
+          type: boolean
+        active:
+          type: boolean
+
+    FeatureFlag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        flag_key:
+          type: string
+          example: "ENABLE_AI_SUGGESTIONS"
+        name:
+          type: string
+          example: "AI Writing Suggestions"
+        description:
+          type: string
+          example: "Enable AI-powered writing suggestions in editor"
+        enabled:
+          type: boolean
+          example: true
+        flag_type:
+          type: string
+          enum: [boolean, string, integer, json]
+          example: "boolean"
+        default_value:
+          type: string
+          example: "false"
+        environment:
+          type: string
+          enum: [development, staging, production, all]
+          example: "production"
+        service:
+          type: string
+          example: "article-management"
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 50
+        target_users:
+          type: array
+          items:
+            type: string
+            format: uuid
+          example: ["123e4567-e89b-12d3-a456-426614174000"]
+        target_workspaces:
+          type: array
+          items:
+            type: string
+            format: uuid
+          example: ["987fcdeb-51a2-43d1-b789-456789abcdef"]
+        conditions:
+          type: object
+          example: {"user_role": "premium", "workspace_plan": "enterprise"}
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateFeatureFlagRequest:
+      type: object
+      required:
+        - flag_key
+        - name
+        - flag_type
+        - default_value
+      properties:
+        flag_key:
+          type: string
+          example: "ENABLE_BULK_IMPORT"
+        name:
+          type: string
+          example: "Bulk Article Import"
+        description:
+          type: string
+          example: "Enable bulk import functionality"
+        enabled:
+          type: boolean
+          default: false
+        flag_type:
+          type: string
+          enum: [boolean, string, integer, json]
+        default_value:
+          type: string
+        environment:
+          type: string
+          enum: [development, staging, production, all]
+          default: all
+        service:
+          type: string
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 0
+        conditions:
+          type: object
+
+    UpdateFeatureFlagRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        default_value:
+          type: string
+        rollout_percentage:
+          type: integer
+        target_users:
+          type: array
+          items:
+            type: string
+            format: uuid
+        target_workspaces:
+          type: array
+          items:
+            type: string
+            format: uuid
+        conditions:
+          type: object
+
+    EnvironmentConfig:
+      type: object
+      properties:
+        environment:
+          type: string
+          enum: [development, staging, production]
+          example: "production"
+        database:
+          type: object
+          properties:
+            host:
+              type: string
+            port:
+              type: integer
+            name:
+              type: string
+            pool_size:
+              type: integer
+        redis:
+          type: object
+          properties:
+            host:
+              type: string
+            port:
+              type: integer
+            db:
+              type: integer
+        api_limits:
+          type: object
+          properties:
+            requests_per_minute:
+              type: integer
+            max_file_size_mb:
+              type: integer
+        features:
+          type: object
+          properties:
+            debug_mode:
+              type: boolean
+            maintenance_mode:
+              type: boolean
+
+    EnvironmentVariable:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "DATABASE_URL"
+        value:
+          type: string
+          example: "postgresql://user:pass@localhost:5432/db"
+        service:
+          type: string
+          example: "article-management"
+        category:
+          type: string
+          example: "database"
+        environment:
+          type: string
+          enum: [development, staging, production]
+          example: "production"
+        is_sensitive:
+          type: boolean
+          example: true
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateEnvironmentVariableRequest:
+      type: object
+      required:
+        - name
+        - value
+        - environment
+      properties:
+        name:
+          type: string
+          example: "SMTP_PASSWORD"
+        value:
+          type: string
+          example: "secure_password"
+        service:
+          type: string
+          example: "notification"
+        category:
+          type: string
+          example: "email"
+        environment:
+          type: string
+          enum: [development, staging, production]
+        is_sensitive:
+          type: boolean
+          default: false
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"config_key": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

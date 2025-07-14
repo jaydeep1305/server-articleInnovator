@@ -1,0 +1,959 @@
+openapi: 3.0.3
+info:
+  title: User Management Service API
+  description: |
+    Microservice responsible for user authentication, authorization, role management, and user profile management.
+    This service handles user lifecycle, role-based permissions, and workspace user relationships.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5001/api/v1
+    description: Development server
+  - url: https://api.company.com/user-management/v1
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: Users
+    description: User management operations
+  - name: Roles
+    description: Role management operations
+  - name: Permissions
+    description: Permission management operations
+  - name: Invitations
+    description: Invitation code management
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "securePassword123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refresh_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  user:
+                    $ref: '#/components/schemas/User'
+                  expires_in:
+                    type: integer
+                    example: 3600
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate user session and token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully logged out"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register a new user with invitation code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - invitation_code
+                - full_name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "newuser@example.com"
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: "SecurePass123!"
+                invitation_code:
+                  type: string
+                  example: "INV-123456789"
+                full_name:
+                  type: string
+                  example: "John Doe"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid invitation code or user already exists
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expires_in:
+                    type: integer
+                    example: 3600
+        '401':
+          description: Invalid refresh token
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      description: Get paginated list of users with filtering options
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of users per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          description: Search term for user name or email
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Filter by role name
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - Users
+      summary: Create user
+      description: Create a new user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /users/{user_id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      description: Retrieve user details by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Update user information
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Delete user account
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /users/{user_id}/workspaces:
+    get:
+      tags:
+        - Users
+      summary: Get user workspaces
+      description: List all workspaces assigned to user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User workspaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserWorkspace'
+
+    post:
+      tags:
+        - Users
+      summary: Assign user to workspace
+      description: Assign user to workspace with specific role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workspace_id
+                - role
+              properties:
+                workspace_id:
+                  type: string
+                  format: uuid
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+                role:
+                  type: string
+                  enum: [admin, manager, writer, viewer]
+                  example: "writer"
+      responses:
+        '200':
+          description: User assigned to workspace successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWorkspace'
+        '404':
+          description: User or workspace not found
+        '409':
+          description: User already assigned to workspace
+
+  /users/{user_id}/workspaces/{workspace_id}:
+    delete:
+      tags:
+        - Users
+      summary: Remove user from workspace
+      description: Remove user's access to workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: User removed from workspace successfully
+        '404':
+          description: User or workspace not found
+
+  /roles:
+    get:
+      tags:
+        - Roles
+      summary: List roles
+      description: Get all available roles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+
+    post:
+      tags:
+        - Roles
+      summary: Create role
+      description: Create a new role with permissions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: "content_manager"
+                description:
+                  type: string
+                  example: "Manages content creation and publishing"
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  example: ["123e4567-e89b-12d3-a456-426614174000"]
+      responses:
+        '201':
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /roles/{role_id}:
+    get:
+      tags:
+        - Roles
+      summary: Get role by ID
+      description: Retrieve role details including permissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          description: Role UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Role retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Roles
+      summary: Update role
+      description: Update role information and permissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          description: Role UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "content_manager_updated"
+                description:
+                  type: string
+                  example: "Updated role description"
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      tags:
+        - Roles
+      summary: Delete role
+      description: Delete role (only if not assigned to users)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          description: Role UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Role deleted successfully
+        '400':
+          description: Role cannot be deleted (assigned to users)
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /permissions:
+    get:
+      tags:
+        - Permissions
+      summary: List permissions
+      description: Get all available permissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group
+          in: query
+          description: Filter by permission group
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+
+  /invitation-codes:
+    get:
+      tags:
+        - Invitations
+      summary: List invitation codes
+      description: Get all invitation codes with usage status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: used
+          in: query
+          description: Filter by usage status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Invitation codes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitationCode'
+
+    post:
+      tags:
+        - Invitations
+      summary: Generate invitation code
+      description: Create new invitation code with limitations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - article_limitation
+                - domain_limitation
+                - workspace_limitation
+              properties:
+                article_limitation:
+                  type: integer
+                  minimum: 1
+                  example: 1000
+                domain_limitation:
+                  type: integer
+                  minimum: 1
+                  example: 10
+                workspace_limitation:
+                  type: integer
+                  minimum: 1
+                  example: 5
+      responses:
+        '201':
+          description: Invitation code generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationCode'
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        full_name:
+          type: string
+          example: "John Doe"
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          type: boolean
+          example: true
+        profile_image:
+          type: string
+          format: uri
+          example: "https://example.com/images/profile.jpg"
+        article_limitation:
+          type: integer
+          example: 1000
+        domain_limitation:
+          type: integer
+          example: 10
+        workspace_limitation:
+          type: integer
+          example: 5
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        last_login:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateUserRequest:
+      type: object
+      required:
+        - email
+        - password
+        - full_name
+        - role_id
+      properties:
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "SecurePass123!"
+        full_name:
+          type: string
+          example: "Jane Smith"
+        role_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        article_limitation:
+          type: integer
+          default: 1000
+          example: 1000
+        domain_limitation:
+          type: integer
+          default: 10
+          example: 10
+        workspace_limitation:
+          type: integer
+          default: 10
+          example: 10
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        role_id:
+          type: string
+          format: uuid
+        status:
+          type: boolean
+        article_limitation:
+          type: integer
+        domain_limitation:
+          type: integer
+        workspace_limitation:
+          type: integer
+        profile_image:
+          type: string
+          format: uri
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "writer"
+        description:
+          type: string
+          example: "Can create and edit articles"
+        permissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Permission'
+        status:
+          type: boolean
+          example: true
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    Permission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "create_article"
+        description:
+          type: string
+          example: "Can create new articles"
+        group:
+          type: string
+          example: "articles"
+        status:
+          type: boolean
+          example: true
+
+    InvitationCode:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        invitation_code:
+          type: string
+          example: "INV-123456789"
+        article_limitation:
+          type: integer
+          example: 1000
+        domain_limitation:
+          type: integer
+          example: 10
+        workspace_limitation:
+          type: integer
+          example: 5
+        used:
+          type: boolean
+          example: false
+        used_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    UserWorkspace:
+      type: object
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_name:
+          type: string
+          example: "Marketing Team"
+        role:
+          type: string
+          enum: [admin, manager, writer, viewer]
+          example: "writer"
+        assigned_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        pages:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"email": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            message: "Authentication token is missing or invalid"
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "You don't have permission to perform this action"
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "NotFound"
+            message: "The requested resource was not found"
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "ValidationError"
+            message: "Input validation failed"
+            details:
+              email: ["Enter a valid email address"]
+              password: ["Password must be at least 8 characters long"]

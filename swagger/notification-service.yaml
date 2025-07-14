@@ -1,0 +1,958 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: |
+    Microservice responsible for managing notifications, alerts, and messaging.
+    This service handles notification delivery, preferences, and communication channels.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5008/api/v1
+    description: Development server
+  - url: https://api.company.com/notification/v1
+    description: Production server
+
+tags:
+  - name: Notifications
+    description: Notification management
+  - name: Templates
+    description: Notification templates
+  - name: Preferences
+    description: User notification preferences
+  - name: Channels
+    description: Notification delivery channels
+
+paths:
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: List notifications
+      description: Get user notifications with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          description: Filter by user ID
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          description: Filter by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: domain_id
+          in: query
+          description: Filter by domain
+          schema:
+            type: string
+            format: uuid
+        - name: read
+          in: query
+          description: Filter by read status
+          schema:
+            type: boolean
+        - name: type
+          in: query
+          description: Filter by notification type
+          schema:
+            type: string
+            enum: [info, warning, error, success]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  total:
+                    type: integer
+                    example: 25
+                  unread_count:
+                    type: integer
+                    example: 5
+
+    post:
+      tags:
+        - Notifications
+      summary: Send notification
+      description: Create and send a new notification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNotificationRequest'
+      responses:
+        '201':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /notifications/{notification_id}:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Notifications
+      summary: Update notification
+      description: Mark notification as read or update properties
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                read:
+                  type: boolean
+                  example: true
+                seen_time:
+                  type: string
+                  format: date-time
+                  example: "2024-01-15T10:30:00Z"
+      responses:
+        '200':
+          description: Notification updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+
+    delete:
+      tags:
+        - Notifications
+      summary: Delete notification
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Notification deleted successfully
+
+  /notifications/bulk-read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark multiple notifications as read
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - notification_ids
+              properties:
+                notification_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  maxItems: 100
+                  example: ["123e4567-e89b-12d3-a456-426614174000", "987fcdeb-51a2-43d1-b789-456789abcdef"]
+      responses:
+        '200':
+          description: Notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated_count:
+                    type: integer
+                    example: 5
+                  message:
+                    type: string
+                    example: "5 notifications marked as read"
+
+  /notifications/mark-all-read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all notifications as read
+      description: Mark all unread notifications for user as read
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  description: If not provided, uses current user
+                workspace_id:
+                  type: string
+                  format: uuid
+                  description: Optional filter by workspace
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated_count:
+                    type: integer
+                    example: 12
+
+  /notifications/send-bulk:
+    post:
+      tags:
+        - Notifications
+      summary: Send bulk notifications
+      description: Send notifications to multiple users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkNotificationRequest'
+      responses:
+        '202':
+          description: Bulk notifications queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Bulk notifications queued"
+                  recipient_count:
+                    type: integer
+                    example: 25
+
+  /templates:
+    get:
+      tags:
+        - Templates
+      summary: List notification templates
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          description: Filter by template type
+          schema:
+            type: string
+            enum: [email, push, in_app]
+        - name: category
+          in: query
+          description: Filter by category
+          schema:
+            type: string
+            enum: [article, user, system, monitoring]
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationTemplate'
+
+    post:
+      tags:
+        - Templates
+      summary: Create notification template
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created successfully
+
+  /templates/{template_id}:
+    get:
+      tags:
+        - Templates
+      summary: Get template by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+
+    put:
+      tags:
+        - Templates
+      summary: Update template
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTemplateRequest'
+      responses:
+        '200':
+          description: Template updated successfully
+
+    delete:
+      tags:
+        - Templates
+      summary: Delete template
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Template deleted successfully
+
+  /preferences:
+    get:
+      tags:
+        - Preferences
+      summary: Get user notification preferences
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          description: User ID (defaults to current user)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Preferences retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+
+    put:
+      tags:
+        - Preferences
+      summary: Update notification preferences
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePreferencesRequest'
+      responses:
+        '200':
+          description: Preferences updated successfully
+
+  /channels:
+    get:
+      tags:
+        - Channels
+      summary: List notification channels
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Channels retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationChannel'
+
+    post:
+      tags:
+        - Channels
+      summary: Create notification channel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChannelRequest'
+      responses:
+        '201':
+          description: Channel created successfully
+
+  /channels/{channel_id}/test:
+    post:
+      tags:
+        - Channels
+      summary: Test notification channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: channel_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                test_message:
+                  type: string
+                  default: "This is a test notification"
+                recipient:
+                  type: string
+                  example: "test@example.com"
+      responses:
+        '200':
+          description: Test successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Test notification sent successfully"
+
+components:
+  schemas:
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          example: "Article Published Successfully"
+        message:
+          type: string
+          example: "Your article 'SEO Best Practices' has been published successfully."
+        type:
+          type: string
+          enum: [info, warning, error, success]
+          example: "success"
+        category:
+          type: string
+          enum: [article, user, system, monitoring]
+          example: "article"
+        read:
+          type: boolean
+          example: false
+        send_time:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        seen_time:
+          type: string
+          format: date-time
+          example: "2024-01-15T11:00:00Z"
+        data:
+          type: object
+          description: Additional notification data
+          example: {"article_id": "123e4567-e89b-12d3-a456-426614174000", "url": "https://example.com/article"}
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [in_app, email, push, sms]
+          example: ["in_app", "email"]
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    CreateNotificationRequest:
+      type: object
+      required:
+        - user_id
+        - title
+        - message
+        - type
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        user_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: "Alternative to user_id for multiple recipients"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          example: "New Article Ready"
+        message:
+          type: string
+          example: "Your article has been generated and is ready for review."
+        type:
+          type: string
+          enum: [info, warning, error, success]
+          example: "info"
+        category:
+          type: string
+          enum: [article, user, system, monitoring]
+          example: "article"
+        data:
+          type: object
+          description: Additional notification data
+          example: {"article_id": "123e4567-e89b-12d3-a456-426614174000"}
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [in_app, email, push, sms]
+          default: ["in_app"]
+          example: ["in_app", "email"]
+        send_time:
+          type: string
+          format: date-time
+          description: "Schedule notification for future delivery"
+          example: "2024-01-15T15:00:00Z"
+        template_id:
+          type: string
+          format: uuid
+          description: "Use predefined template"
+
+    BulkNotificationRequest:
+      type: object
+      required:
+        - recipients
+        - title
+        - message
+        - type
+      properties:
+        recipients:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: string
+                format: uuid
+              variables:
+                type: object
+                description: "Template variables for this recipient"
+          maxItems: 1000
+        workspace_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: "Weekly Report Available"
+        message:
+          type: string
+          example: "Your weekly performance report is now available."
+        type:
+          type: string
+          enum: [info, warning, error, success]
+        category:
+          type: string
+          enum: [article, user, system, monitoring]
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [in_app, email, push, sms]
+        template_id:
+          type: string
+          format: uuid
+
+    NotificationTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Article Published"
+        type:
+          type: string
+          enum: [email, push, in_app, sms]
+          example: "email"
+        category:
+          type: string
+          enum: [article, user, system, monitoring]
+          example: "article"
+        subject:
+          type: string
+          example: "Your article '{{article_title}}' has been published"
+        body:
+          type: string
+          example: "Hello {{user_name}}, your article has been successfully published at {{article_url}}"
+        variables:
+          type: array
+          items:
+            type: string
+          example: ["user_name", "article_title", "article_url"]
+        active:
+          type: boolean
+          example: true
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateTemplateRequest:
+      type: object
+      required:
+        - name
+        - type
+        - category
+        - subject
+        - body
+      properties:
+        name:
+          type: string
+          example: "Article Failed"
+        type:
+          type: string
+          enum: [email, push, in_app, sms]
+        category:
+          type: string
+          enum: [article, user, system, monitoring]
+        subject:
+          type: string
+          example: "Article generation failed"
+        body:
+          type: string
+          example: "Article generation failed for {{keyword}}. Error: {{error_message}}"
+        variables:
+          type: array
+          items:
+            type: string
+          example: ["keyword", "error_message"]
+
+    UpdateTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+
+    NotificationPreferences:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email_notifications:
+          type: boolean
+          example: true
+        push_notifications:
+          type: boolean
+          example: true
+        sms_notifications:
+          type: boolean
+          example: false
+        in_app_notifications:
+          type: boolean
+          example: true
+        categories:
+          type: object
+          properties:
+            article:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  example: true
+                channels:
+                  type: array
+                  items:
+                    type: string
+                  example: ["in_app", "email"]
+            user:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  example: true
+                channels:
+                  type: array
+                  items:
+                    type: string
+                  example: ["in_app"]
+            system:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  example: false
+                channels:
+                  type: array
+                  items:
+                    type: string
+                  example: ["in_app"]
+            monitoring:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  example: true
+                channels:
+                  type: array
+                  items:
+                    type: string
+                  example: ["email"]
+        quiet_hours:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            start_time:
+              type: string
+              example: "22:00"
+            end_time:
+              type: string
+              example: "08:00"
+            timezone:
+              type: string
+              example: "UTC"
+
+    UpdatePreferencesRequest:
+      type: object
+      properties:
+        email_notifications:
+          type: boolean
+        push_notifications:
+          type: boolean
+        sms_notifications:
+          type: boolean
+        in_app_notifications:
+          type: boolean
+        categories:
+          type: object
+        quiet_hours:
+          type: object
+
+    NotificationChannel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Email SMTP"
+        type:
+          type: string
+          enum: [email, push, sms, webhook]
+          example: "email"
+        configuration:
+          type: object
+          example: {"smtp_host": "smtp.example.com", "smtp_port": 587}
+        active:
+          type: boolean
+          example: true
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateChannelRequest:
+      type: object
+      required:
+        - name
+        - type
+        - configuration
+      properties:
+        name:
+          type: string
+          example: "AWS SES"
+        type:
+          type: string
+          enum: [email, push, sms, webhook]
+        configuration:
+          type: object
+          example: {"region": "us-east-1", "access_key": "...", "secret_key": "..."}
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"user_id": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

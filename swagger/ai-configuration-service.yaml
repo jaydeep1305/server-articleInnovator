@@ -1,0 +1,1054 @@
+openapi: 3.0.3
+info:
+  title: AI Configuration Service API
+  description: |
+    Microservice responsible for AI models, prompts, and AI-related configurations.
+    This service handles AI integrations, prompt management, and content generation requests.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5005/api/v1
+    description: Development server
+  - url: https://api.company.com/ai-configuration/v1
+    description: Production server
+
+tags:
+  - name: AI Configurations
+    description: AI model and API configurations
+  - name: Prompts
+    description: Main prompt management
+  - name: Supportive Prompts
+    description: Supportive prompt management
+  - name: Variables
+    description: Prompt variable management
+  - name: Generation
+    description: AI content generation
+
+paths:
+  /ai-configs:
+    get:
+      tags:
+        - AI Configurations
+      summary: List AI configurations
+      description: Get all AI configurations with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          description: Filter by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: api_provider
+          in: query
+          description: Filter by API provider
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: AI configurations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AIConfiguration'
+
+    post:
+      tags:
+        - AI Configurations
+      summary: Create AI configuration
+      description: Create a new AI API configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAIConfigRequest'
+      responses:
+        '201':
+          description: AI configuration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfiguration'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /ai-configs/{config_id}:
+    get:
+      tags:
+        - AI Configurations
+      summary: Get AI configuration by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: AI configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfiguration'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - AI Configurations
+      summary: Update AI configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAIConfigRequest'
+      responses:
+        '200':
+          description: AI configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfiguration'
+
+    delete:
+      tags:
+        - AI Configurations
+      summary: Delete AI configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: AI configuration deleted successfully
+
+  /ai-configs/{config_id}/test:
+    post:
+      tags:
+        - AI Configurations
+      summary: Test AI configuration
+      description: Test connection and functionality of AI configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                test_prompt:
+                  type: string
+                  default: "Hello, this is a test message."
+      responses:
+        '200':
+          description: Test successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  response:
+                    type: string
+                    example: "Hello! I'm working correctly."
+                  response_time:
+                    type: number
+                    format: float
+                    example: 1.23
+                  tokens_used:
+                    type: integer
+                    example: 25
+        '400':
+          description: Test failed
+
+  /prompts:
+    get:
+      tags:
+        - Prompts
+      summary: List prompts
+      description: Get all prompts with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: article_type_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Prompts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prompt'
+
+    post:
+      tags:
+        - Prompts
+      summary: Create prompt
+      description: Create a new prompt configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
+      responses:
+        '201':
+          description: Prompt created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+
+  /prompts/{prompt_id}:
+    get:
+      tags:
+        - Prompts
+      summary: Get prompt by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptDetail'
+
+    put:
+      tags:
+        - Prompts
+      summary: Update prompt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePromptRequest'
+      responses:
+        '200':
+          description: Prompt updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+
+    delete:
+      tags:
+        - Prompts
+      summary: Delete prompt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Prompt deleted successfully
+
+  /supportive-prompts:
+    get:
+      tags:
+        - Supportive Prompts
+      summary: List supportive prompts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: supportive_prompt_type_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Supportive prompts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportivePrompt'
+
+    post:
+      tags:
+        - Supportive Prompts
+      summary: Create supportive prompt
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportivePromptRequest'
+      responses:
+        '201':
+          description: Supportive prompt created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportivePrompt'
+
+  /supportive-prompts/{prompt_id}:
+    get:
+      tags:
+        - Supportive Prompts
+      summary: Get supportive prompt by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Supportive prompt retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportivePrompt'
+
+    put:
+      tags:
+        - Supportive Prompts
+      summary: Update supportive prompt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSupportivePromptRequest'
+      responses:
+        '200':
+          description: Supportive prompt updated successfully
+
+    delete:
+      tags:
+        - Supportive Prompts
+      summary: Delete supportive prompt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Supportive prompt deleted successfully
+
+  /supportive-prompt-types:
+    get:
+      tags:
+        - Supportive Prompts
+      summary: List supportive prompt types
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Supportive prompt types retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportivePromptType'
+
+    post:
+      tags:
+        - Supportive Prompts
+      summary: Create supportive prompt type
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportivePromptTypeRequest'
+      responses:
+        '201':
+          description: Supportive prompt type created successfully
+
+  /variables:
+    get:
+      tags:
+        - Variables
+      summary: List variables
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: supportive_prompt_type_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: article_type_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Variables retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Variable'
+
+    post:
+      tags:
+        - Variables
+      summary: Create variable
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVariableRequest'
+      responses:
+        '201':
+          description: Variable created successfully
+
+  /generate:
+    post:
+      tags:
+        - Generation
+      summary: Generate AI content
+      description: Generate content using specified prompt and configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateContentRequest'
+      responses:
+        '202':
+          description: Generation request queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    format: uuid
+                    example: "123e4567-e89b-12d3-a456-426614174000"
+                  message:
+                    type: string
+                    example: "Content generation queued"
+                  estimated_time:
+                    type: integer
+                    example: 30
+        '400':
+          description: Invalid generation request
+
+  /generate/{job_id}/status:
+    get:
+      tags:
+        - Generation
+      summary: Get generation status
+      description: Check status of content generation job
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationStatus'
+
+components:
+  schemas:
+    AIConfiguration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email:
+          type: string
+          format: email
+          example: "ai@company.com"
+        api_provider:
+          type: string
+          example: "openai"
+        api_type:
+          type: string
+          example: "chat"
+        api_version:
+          type: string
+          example: "v1"
+        api_url:
+          type: string
+          example: "https://api.openai.com/v1/chat/completions"
+        api_model:
+          type: string
+          example: "gpt-4"
+        ai_rate_key_id:
+          type: string
+          example: "rate_limit_key_123"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateAIConfigRequest:
+      type: object
+      required:
+        - workspace_id
+        - api_provider
+        - api_type
+        - api_url
+        - api_key
+        - api_model
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        api_provider:
+          type: string
+          example: "openai"
+        api_type:
+          type: string
+          example: "chat"
+        api_version:
+          type: string
+          example: "v1"
+        api_url:
+          type: string
+          example: "https://api.openai.com/v1/chat/completions"
+        api_key:
+          type: string
+          example: "sk-..."
+        api_model:
+          type: string
+          example: "gpt-4"
+        ai_rate_key_id:
+          type: string
+
+    UpdateAIConfigRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        api_provider:
+          type: string
+        api_type:
+          type: string
+        api_version:
+          type: string
+        api_url:
+          type: string
+        api_key:
+          type: string
+        api_model:
+          type: string
+        ai_rate_key_id:
+          type: string
+        status:
+          type: boolean
+
+    Prompt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        article_type_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "SEO Article Generator"
+        ai_rate_model:
+          type: string
+          example: "gpt-4"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    PromptDetail:
+      allOf:
+        - $ref: '#/components/schemas/Prompt'
+        - type: object
+          properties:
+            prompt_data:
+              type: object
+              example: {"system": "You are an SEO expert", "user": "Write an article about {keyword}"}
+            supportive_prompt_json_data:
+              type: object
+              example: {"title_generator": "prompt_id_123", "meta_generator": "prompt_id_456"}
+
+    CreatePromptRequest:
+      type: object
+      required:
+        - name
+        - article_type_id
+        - workspace_id
+        - ai_rate_model
+      properties:
+        name:
+          type: string
+          example: "Blog Post Generator"
+        article_type_id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        ai_rate_model:
+          type: string
+          example: "gpt-4"
+        prompt_data:
+          type: object
+          example: {"system": "You are a content writer", "user": "Create a blog post about {topic}"}
+        supportive_prompt_json_data:
+          type: object
+          example: {"title_generator": "prompt_id_123"}
+
+    UpdatePromptRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        ai_rate_model:
+          type: string
+        prompt_data:
+          type: object
+        supportive_prompt_json_data:
+          type: object
+        status:
+          type: boolean
+
+    SupportivePrompt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        supportive_prompt_type_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Title Generator"
+        description:
+          type: string
+          example: "Generates SEO-optimized titles"
+        supportive_prompt_data:
+          type: string
+          example: "Generate an SEO-friendly title for: {content_topic}"
+        ai_model:
+          type: string
+          example: "gpt-4"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateSupportivePromptRequest:
+      type: object
+      required:
+        - workspace_id
+        - supportive_prompt_type_id
+        - name
+        - supportive_prompt_data
+        - ai_model
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        supportive_prompt_type_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        supportive_prompt_data:
+          type: string
+        ai_model:
+          type: string
+
+    UpdateSupportivePromptRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        supportive_prompt_data:
+          type: string
+        ai_model:
+          type: string
+        status:
+          type: boolean
+
+    SupportivePromptType:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "title_generator"
+        title:
+          type: string
+          example: "Title Generator"
+        description:
+          type: string
+          example: "Generates article titles"
+        example:
+          type: string
+          example: "Generate title for: {topic}"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateSupportivePromptTypeRequest:
+      type: object
+      required:
+        - name
+        - title
+        - description
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        example:
+          type: string
+
+    Variable:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        supportive_prompt_type_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        article_type_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "keyword"
+        required:
+          type: boolean
+          example: true
+        use_exact_value:
+          type: boolean
+          example: true
+        example_value:
+          type: string
+          example: "SEO best practices"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateVariableRequest:
+      type: object
+      required:
+        - name
+        - required
+      properties:
+        supportive_prompt_type_id:
+          type: string
+          format: uuid
+        article_type_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        required:
+          type: boolean
+        use_exact_value:
+          type: boolean
+          default: true
+        example_value:
+          type: string
+
+    GenerateContentRequest:
+      type: object
+      required:
+        - prompt_id
+        - ai_config_id
+        - variables
+      properties:
+        prompt_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        ai_config_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        variables:
+          type: object
+          example: {"keyword": "SEO tips", "target_audience": "beginners"}
+        article_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+
+    GenerationStatus:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+          example: "completed"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 100
+        result:
+          type: object
+          example: {"title": "10 SEO Tips for Beginners", "content": "Here are the best SEO tips..."}
+        error_message:
+          type: string
+          example: "Rate limit exceeded"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        completed_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:01:00Z"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"api_key": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

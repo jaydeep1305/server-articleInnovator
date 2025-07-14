@@ -1,0 +1,1040 @@
+openapi: 3.0.3
+info:
+  title: Domain Management Service API
+  description: |
+    Microservice responsible for domain management and WordPress integration.
+    This service handles domain lifecycle, WordPress connections, and synchronization of content elements.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5003/api/v1
+    description: Development server
+  - url: https://api.company.com/domain-management/v1
+    description: Production server
+
+tags:
+  - name: Domains
+    description: Domain management operations
+  - name: WordPress Categories
+    description: WordPress category management
+  - name: WordPress Tags
+    description: WordPress tag management
+  - name: WordPress Authors
+    description: WordPress author management
+  - name: WordPress Integration
+    description: WordPress connection and synchronization
+
+paths:
+  /domains:
+    get:
+      tags:
+        - Domains
+      summary: List domains
+      description: Get paginated list of domains with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: workspace_id
+          in: query
+          description: Filter domains by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Search domain names
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by domain status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Domains retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domains:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Domain'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Domains
+      summary: Create domain
+      description: Create a new domain with WordPress integration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDomainRequest'
+      responses:
+        '201':
+          description: Domain created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /domains/{domain_id}:
+    get:
+      tags:
+        - Domains
+      summary: Get domain by ID
+      description: Retrieve domain details including WordPress connection status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Domain retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Domains
+      summary: Update domain
+      description: Update domain information and WordPress credentials
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDomainRequest'
+      responses:
+        '200':
+          description: Domain updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags:
+        - Domains
+      summary: Delete domain
+      description: Delete domain and all associated data
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Domain deleted successfully
+        '400':
+          description: Domain cannot be deleted (has active articles)
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /domains/{domain_id}/test-connection:
+    post:
+      tags:
+        - WordPress Integration
+      summary: Test WordPress connection
+      description: Test connection to WordPress site using provided credentials
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Connection test successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "WordPress connection successful"
+                  wp_version:
+                    type: string
+                    example: "6.4.2"
+                  site_title:
+                    type: string
+                    example: "My Blog"
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                    example: ["publish_posts", "edit_posts", "delete_posts"]
+        '400':
+          description: Connection test failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "failed"
+                  error:
+                    type: string
+                    example: "Invalid credentials"
+
+  /domains/{domain_id}/wp-categories:
+    get:
+      tags:
+        - WordPress Categories
+      summary: List WordPress categories
+      description: Get all categories for the domain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+        - name: derived_by
+          in: query
+          description: Filter by derivation source
+          schema:
+            type: string
+            enum: [ai, wordpress]
+        - name: default_section
+          in: query
+          description: Filter default categories
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WPCategory'
+
+    post:
+      tags:
+        - WordPress Categories
+      summary: Create WordPress category
+      description: Create a new category in WordPress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWPCategoryRequest'
+      responses:
+        '201':
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WPCategory'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    put:
+      tags:
+        - WordPress Categories
+      summary: Sync categories from WordPress
+      description: Synchronize categories from WordPress site to local database
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Categories synchronized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  synced_count:
+                    type: integer
+                    example: 15
+                  new_count:
+                    type: integer
+                    example: 3
+                  updated_count:
+                    type: integer
+                    example: 2
+
+  /domains/{domain_id}/wp-categories/{category_id}:
+    get:
+      tags:
+        - WordPress Categories
+      summary: Get category by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Category retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WPCategory'
+
+    put:
+      tags:
+        - WordPress Categories
+      summary: Update category
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWPCategoryRequest'
+      responses:
+        '200':
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WPCategory'
+
+    delete:
+      tags:
+        - WordPress Categories
+      summary: Delete category
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Category deleted successfully
+
+  /domains/{domain_id}/wp-tags:
+    get:
+      tags:
+        - WordPress Tags
+      summary: List WordPress tags
+      description: Get all tags for the domain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+        - name: derived_by
+          in: query
+          description: Filter by derivation source
+          schema:
+            type: string
+            enum: [ai, wordpress]
+      responses:
+        '200':
+          description: Tags retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WPTag'
+
+    post:
+      tags:
+        - WordPress Tags
+      summary: Create WordPress tag
+      description: Create a new tag in WordPress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWPTagRequest'
+      responses:
+        '201':
+          description: Tag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WPTag'
+
+    put:
+      tags:
+        - WordPress Tags
+      summary: Sync tags from WordPress
+      description: Synchronize tags from WordPress site to local database
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tags synchronized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  synced_count:
+                    type: integer
+                    example: 50
+                  new_count:
+                    type: integer
+                    example: 8
+                  updated_count:
+                    type: integer
+                    example: 2
+
+  /domains/{domain_id}/wp-authors:
+    get:
+      tags:
+        - WordPress Authors
+      summary: List WordPress authors
+      description: Get all authors for the domain
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+        - name: derived_by
+          in: query
+          description: Filter by derivation source
+          schema:
+            type: string
+            enum: [ai, wordpress]
+        - name: default_section
+          in: query
+          description: Filter default authors
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Authors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WPAuthor'
+
+    post:
+      tags:
+        - WordPress Authors
+      summary: Create WordPress author
+      description: Create a new author in WordPress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWPAuthorRequest'
+      responses:
+        '201':
+          description: Author created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WPAuthor'
+
+    put:
+      tags:
+        - WordPress Authors
+      summary: Sync authors from WordPress
+      description: Synchronize authors from WordPress site to local database
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Authors synchronized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  synced_count:
+                    type: integer
+                    example: 5
+                  new_count:
+                    type: integer
+                    example: 1
+                  updated_count:
+                    type: integer
+                    example: 0
+
+  /domains/{domain_id}/sync-all:
+    post:
+      tags:
+        - WordPress Integration
+      summary: Sync all WordPress data
+      description: Synchronize categories, tags, and authors from WordPress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: path
+          required: true
+          description: Domain UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: All data synchronized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: object
+                    properties:
+                      synced: { type: integer }
+                      new: { type: integer }
+                      updated: { type: integer }
+                  tags:
+                    type: object
+                    properties:
+                      synced: { type: integer }
+                      new: { type: integer }
+                      updated: { type: integer }
+                  authors:
+                    type: object
+                    properties:
+                      synced: { type: integer }
+                      new: { type: integer }
+                      updated: { type: integer }
+
+components:
+  schemas:
+    Domain:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "example.com"
+        wordpress_username:
+          type: string
+          example: "admin"
+        permalinks:
+          type: string
+          example: "/%postname%/"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    DomainDetail:
+      allOf:
+        - $ref: '#/components/schemas/Domain'
+        - type: object
+          properties:
+            connection_status:
+              type: string
+              enum: [connected, disconnected, error]
+              example: "connected"
+            last_sync_date:
+              type: string
+              format: date-time
+              example: "2024-01-15T10:30:00Z"
+            article_count:
+              type: integer
+              example: 45
+            category_count:
+              type: integer
+              example: 8
+            tag_count:
+              type: integer
+              example: 23
+            author_count:
+              type: integer
+              example: 3
+
+    CreateDomainRequest:
+      type: object
+      required:
+        - name
+        - wordpress_username
+        - wordpress_application_password
+        - workspace_id
+      properties:
+        name:
+          type: string
+          example: "myblog.com"
+        wordpress_username:
+          type: string
+          example: "admin"
+        wordpress_application_password:
+          type: string
+          example: "abcd efgh ijkl mnop"
+        permalinks:
+          type: string
+          example: "/%postname%/"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+
+    UpdateDomainRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "myblog.com"
+        wordpress_username:
+          type: string
+          example: "admin"
+        wordpress_application_password:
+          type: string
+          example: "abcd efgh ijkl mnop"
+        permalinks:
+          type: string
+          example: "/%postname%/"
+        status:
+          type: boolean
+          example: true
+
+    WPCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Technology"
+        slug:
+          type: string
+          example: "technology"
+        description:
+          type: string
+          example: "Posts about technology and innovation"
+        wp_cat_id:
+          type: string
+          example: "5"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        derived_by:
+          type: string
+          enum: [ai, wordpress]
+          example: "wordpress"
+        default_section:
+          type: boolean
+          example: false
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateWPCategoryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: "New Category"
+        slug:
+          type: string
+          example: "new-category"
+        description:
+          type: string
+          example: "Description for new category"
+        default_section:
+          type: boolean
+          example: false
+
+    UpdateWPCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "Updated Category"
+        slug:
+          type: string
+          example: "updated-category"
+        description:
+          type: string
+          example: "Updated description"
+        default_section:
+          type: boolean
+          example: true
+
+    WPTag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "SEO"
+        slug:
+          type: string
+          example: "seo"
+        description:
+          type: string
+          example: "Search Engine Optimization"
+        wp_tag_id:
+          type: string
+          example: "12"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        derived_by:
+          type: string
+          enum: [ai, wordpress]
+          example: "ai"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateWPTagRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: "Machine Learning"
+        slug:
+          type: string
+          example: "machine-learning"
+        description:
+          type: string
+          example: "Posts about machine learning"
+
+    WPAuthor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        username:
+          type: string
+          example: "john_writer"
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Smith"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        bio:
+          type: string
+          example: "Experienced content writer"
+        wp_author_id:
+          type: string
+          example: "3"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        profile_image:
+          type: string
+          format: uri
+          example: "https://example.com/images/authors/john.jpg"
+        derived_by:
+          type: string
+          enum: [ai, wordpress]
+          example: "wordpress"
+        default_section:
+          type: boolean
+          example: true
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateWPAuthorRequest:
+      type: object
+      required:
+        - username
+        - email
+        - first_name
+        - last_name
+      properties:
+        username:
+          type: string
+          example: "new_author"
+        first_name:
+          type: string
+          example: "Jane"
+        last_name:
+          type: string
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          example: "jane@example.com"
+        bio:
+          type: string
+          example: "New content author"
+        author_password:
+          type: string
+          example: "secure_password123"
+        default_section:
+          type: boolean
+          example: false
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        pages:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"name": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
