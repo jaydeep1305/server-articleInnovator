@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  monitoring-service:
+    build:
+      context: .
+      target: development
+    container_name: monitoring-service
+    ports:
+      - "5006:5006"
+    environment:
+      - FLASK_ENV=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=monitoring_dev
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - rabbitmq
+      - redis
+    volumes:
+      - .:/app
+    networks:
+      - monitoring_service_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: monitoring-service_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=monitoring_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - monitoring_service_network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: monitoring-service_rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - monitoring_service_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: monitoring-service_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - monitoring_service_network
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:
+
+networks:
+  monitoring_service_network:
+    driver: bridge
