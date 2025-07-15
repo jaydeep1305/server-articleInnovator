@@ -2,8 +2,9 @@ openapi: 3.0.3
 info:
   title: Workspace Management Service API
   description: |
-    Microservice responsible for workspace management, user-workspace relationships, and workspace-level configurations.
-    This service handles workspace lifecycle, user assignments, and workspace statistics.
+    Microservice responsible for workspace lifecycle management, user assignments, and workspace analytics.
+    Handles workspace creation, updates, user relationships, and provides workspace statistics.
+    Based on exact Django model schemas from apiApp/models.py
   version: 1.0.0
   contact:
     name: Development Team
@@ -20,8 +21,8 @@ tags:
     description: Workspace management operations
   - name: Users
     description: Workspace user management
-  - name: Statistics
-    description: Workspace statistics and analytics
+  - name: Analytics
+    description: Workspace analytics and statistics
 
 paths:
   /workspaces:
@@ -46,22 +47,21 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
-        - name: user_id
-          in: query
-          description: Filter workspaces by user access
-          schema:
-            type: string
-            format: uuid
-        - name: search
-          in: query
-          description: Search workspace names
-          schema:
-            type: string
         - name: status
           in: query
           description: Filter by workspace status
           schema:
             type: boolean
+        - name: search
+          in: query
+          description: Search in workspace names
+          schema:
+            type: string
+        - name: created_by
+          in: query
+          description: Filter by creator user ID
+          schema:
+            type: integer
       responses:
         '200':
           description: Workspaces retrieved successfully
@@ -81,7 +81,7 @@ paths:
       tags:
         - Workspaces
       summary: Create workspace
-      description: Create a new workspace
+      description: Create new workspace
       security:
         - bearerAuth: []
       requestBody:
@@ -97,34 +97,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workspace'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+        '400':
+          description: Invalid workspace data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Workspace name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /workspaces/{workspace_id}:
+  /workspaces/{workspaceId}:
     get:
       tags:
         - Workspaces
       summary: Get workspace by ID
-      description: Retrieve workspace details including user count and domain count
+      description: Retrieve specific workspace details
       security:
         - bearerAuth: []
       parameters:
-        - name: workspace_id
+        - name: workspaceId
           in: path
           required: true
-          description: Workspace UUID
           schema:
-            type: string
-            format: uuid
+            type: integer
       responses:
         '200':
           description: Workspace retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkspaceDetail'
+                $ref: '#/components/schemas/Workspace'
         '404':
-          $ref: '#/components/responses/NotFoundError'
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
     put:
       tags:
@@ -134,13 +146,11 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: workspace_id
+        - name: workspaceId
           in: path
           required: true
-          description: Workspace UUID
           schema:
-            type: string
-            format: uuid
+            type: integer
       requestBody:
         required: true
         content:
@@ -155,325 +165,306 @@ paths:
               schema:
                 $ref: '#/components/schemas/Workspace'
         '404':
-          $ref: '#/components/responses/NotFoundError'
-        '422':
-          $ref: '#/components/responses/ValidationError'
+          description: Workspace not found
+        '409':
+          description: Workspace name already exists
 
     delete:
       tags:
         - Workspaces
       summary: Delete workspace
-      description: Delete workspace and all associated data
+      description: Soft delete workspace (set status to false)
       security:
         - bearerAuth: []
       parameters:
-        - name: workspace_id
+        - name: workspaceId
           in: path
           required: true
-          description: Workspace UUID
           schema:
-            type: string
-            format: uuid
+            type: integer
       responses:
         '204':
           description: Workspace deleted successfully
-        '400':
-          description: Workspace cannot be deleted (has active domains or users)
         '404':
-          $ref: '#/components/responses/NotFoundError'
+          description: Workspace not found
 
-  /workspaces/{workspace_id}/users:
+  /workspaces/{workspaceId}/users:
     get:
       tags:
         - Users
-      summary: List workspace users
-      description: Get all users assigned to workspace with their roles
+      summary: Get workspace users
+      description: Get all users assigned to workspace
       security:
         - bearerAuth: []
       parameters:
-        - name: workspace_id
+        - name: workspaceId
           in: path
           required: true
-          description: Workspace UUID
           schema:
-            type: string
-            format: uuid
-        - name: role
+            type: integer
+        - name: page
           in: query
-          description: Filter by user role in workspace
           schema:
-            type: string
-            enum: [admin, manager, writer, viewer]
-      responses:
-        '200':
-          description: Workspace users retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkspaceUser'
-
-    post:
-      tags:
-        - Users
-      summary: Add user to workspace
-      description: Assign user to workspace with specific role
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: workspace_id
-          in: path
-          required: true
-          description: Workspace UUID
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - user_id
-                - role
-              properties:
-                user_id:
-                  type: string
-                  format: uuid
-                  example: "123e4567-e89b-12d3-a456-426614174000"
-                role:
-                  type: string
-                  enum: [admin, manager, writer, viewer]
-                  example: "writer"
-      responses:
-        '201':
-          description: User added to workspace successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkspaceUser'
-        '404':
-          description: User or workspace not found
-        '409':
-          description: User already assigned to workspace
-
-  /workspaces/{workspace_id}/users/{user_id}:
-    put:
-      tags:
-        - Users
-      summary: Update user role in workspace
-      description: Change user's role within workspace
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: workspace_id
-          in: path
-          required: true
-          description: Workspace UUID
-          schema:
-            type: string
-            format: uuid
-        - name: user_id
-          in: path
-          required: true
-          description: User UUID
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - role
-              properties:
-                role:
-                  type: string
-                  enum: [admin, manager, writer, viewer]
-                  example: "manager"
-      responses:
-        '200':
-          description: User role updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkspaceUser'
-        '404':
-          description: User or workspace not found
-
-    delete:
-      tags:
-        - Users
-      summary: Remove user from workspace
-      description: Remove user's access to workspace
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: workspace_id
-          in: path
-          required: true
-          description: Workspace UUID
-          schema:
-            type: string
-            format: uuid
-        - name: user_id
-          in: path
-          required: true
-          description: User UUID
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: User removed from workspace successfully
-        '404':
-          description: User or workspace not found
-
-  /workspaces/{workspace_id}/domains:
-    get:
-      tags:
-        - Workspaces
-      summary: List workspace domains
-      description: Get all domains associated with workspace
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: workspace_id
-          in: path
-          required: true
-          description: Workspace UUID
-          schema:
-            type: string
-            format: uuid
-        - name: status
-          in: query
-          description: Filter domains by status
-          schema:
-            type: boolean
-      responses:
-        '200':
-          description: Workspace domains retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkspaceDomain'
-
-  /workspaces/{workspace_id}/statistics:
-    get:
-      tags:
-        - Statistics
-      summary: Get workspace statistics
-      description: Retrieve comprehensive workspace statistics
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: workspace_id
-          in: path
-          required: true
-          description: Workspace UUID
-          schema:
-            type: string
-            format: uuid
-        - name: period
-          in: query
-          description: Statistics period
-          schema:
-            type: string
-            enum: [7d, 30d, 90d, 1y]
-            default: 30d
-      responses:
-        '200':
-          description: Workspace statistics retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkspaceStatistics'
-
-  /workspaces/{workspace_id}/activity:
-    get:
-      tags:
-        - Statistics
-      summary: Get workspace activity
-      description: Recent activity within workspace
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: workspace_id
-          in: path
-          required: true
-          description: Workspace UUID
-          schema:
-            type: string
-            format: uuid
+            type: integer
+            minimum: 1
+            default: 1
         - name: limit
           in: query
           schema:
             type: integer
             minimum: 1
             maximum: 100
-            default: 50
+            default: 20
+        - name: role_id
+          in: query
+          description: Filter by user role
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Workspace users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkspaceUser'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Users
+      summary: Add users to workspace
+      description: Assign multiple users to workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_ids
+              properties:
+                user_ids:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 2, 3]
+                  description: "Array of user_detail IDs to add to workspace"
+      responses:
+        '200':
+          description: Users added to workspace successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Users successfully added to workspace"
+                  added_users:
+                    type: array
+                    items:
+                      type: integer
+                    example: [1, 2, 3]
+
+  /workspaces/{workspaceId}/users/{userId}:
+    delete:
+      tags:
+        - Users
+      summary: Remove user from workspace
+      description: Remove user assignment from workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            description: "user_detail ID"
+      responses:
+        '204':
+          description: User removed from workspace successfully
+        '404':
+          description: User or workspace not found
+
+  /workspaces/{workspaceId}/stats:
+    get:
+      tags:
+        - Analytics
+      summary: Get workspace statistics
+      description: Retrieve workspace analytics and usage statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: period
+          in: query
+          description: Statistics period
+          schema:
+            type: string
+            enum: [week, month, quarter, year]
+            default: month
+      responses:
+        '200':
+          description: Workspace statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceStats'
+
+  /workspaces/{workspaceId}/activity:
+    get:
+      tags:
+        - Analytics
+      summary: Get workspace activity log
+      description: Retrieve recent activities in workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: activity_type
+          in: query
+          description: Filter by activity type
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          description: Filter by user ID
+          schema:
+            type: integer
       responses:
         '200':
           description: Workspace activity retrieved successfully
           content:
             application/json:
               schema:
+                type: object
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkspaceActivity'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /workspaces/by-user/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user workspaces
+      description: Get all workspaces assigned to a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            description: "user_detail ID"
+        - name: status
+          in: query
+          description: Filter by workspace status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: User workspaces retrieved successfully
+          content:
+            application/json:
+              schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ActivityLog'
+                  $ref: '#/components/schemas/Workspace'
 
 components:
   schemas:
     Workspace:
       type: object
+      description: "workspace model from apiApp/models.py"
       properties:
         id:
-          type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
+          type: integer
+          example: 1
         name:
           type: string
+          maxLength: 200
           example: "Marketing Team"
+          description: "Unique workspace name"
+          default: ""
         logo:
           type: string
-          format: uri
-          example: "https://example.com/logos/workspace.jpg"
+          example: "workspace/logo.jpg"
+          description: "FileField upload_to='workspace'"
+          nullable: true
         status:
           type: boolean
           example: true
-        created_by:
+          default: true
+        slug_id:
           type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
         created_date:
           type: string
           format: date-time
-          example: "2024-01-01T00:00:00Z"
+          example: "2024-01-15T10:30:00Z"
         updated_date:
           type: string
           format: date-time
-          example: "2024-01-01T00:00:00Z"
-
-    WorkspaceDetail:
-      allOf:
-        - $ref: '#/components/schemas/Workspace'
-        - type: object
-          properties:
-            user_count:
-              type: integer
-              example: 5
-            domain_count:
-              type: integer
-              example: 3
-            article_count:
-              type: integer
-              example: 150
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: integer
+          example: 1
+          description: "ForeignKey to User model"
+          nullable: true
 
     CreateWorkspaceRequest:
       type: object
@@ -482,148 +473,157 @@ components:
       properties:
         name:
           type: string
-          minLength: 1
           maxLength: 200
-          example: "Content Marketing Team"
+          example: "New Marketing Team"
+          description: "Must be unique"
         logo:
           type: string
           format: uri
-          example: "https://example.com/logos/new-workspace.jpg"
+          example: "https://example.com/logo.jpg"
+          description: "Logo file URL or upload"
 
     UpdateWorkspaceRequest:
       type: object
       properties:
         name:
           type: string
-          minLength: 1
           maxLength: 200
-          example: "Updated Team Name"
+          example: "Updated Marketing Team"
         logo:
           type: string
           format: uri
-          example: "https://example.com/logos/updated-logo.jpg"
+          example: "https://example.com/new-logo.jpg"
         status:
           type: boolean
           example: true
 
     WorkspaceUser:
       type: object
+      description: "user_detail with workspace relationship"
       properties:
+        id:
+          type: integer
+          example: 1
+          description: "user_detail ID"
         user_id:
+          type: integer
+          example: 1
+          description: "Django User ID"
+        full_name:
           type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
+          maxLength: 100
+          example: "John Doe"
         email:
           type: string
           format: email
-          example: "user@example.com"
-        full_name:
-          type: string
-          example: "John Doe"
-        role:
-          type: string
-          enum: [admin, manager, writer, viewer]
-          example: "writer"
-        status:
-          type: boolean
-          example: true
-        assigned_date:
-          type: string
-          format: date-time
-          example: "2024-01-01T00:00:00Z"
-        last_activity:
-          type: string
-          format: date-time
-          example: "2024-01-15T10:30:00Z"
-
-    WorkspaceDomain:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
-        name:
-          type: string
-          example: "example.com"
-        status:
-          type: boolean
-          example: true
-        article_count:
+          example: "john@example.com"
+        role_id:
           type: integer
-          example: 25
-        last_article_date:
+          example: 2
+          description: "User role ID"
+        role_name:
           type: string
-          format: date-time
-          example: "2024-01-15T10:30:00Z"
+          example: "content_writer"
+        profile_image:
+          type: string
+          example: "user/profile.jpg"
+        status:
+          type: boolean
+          example: true
+        article_limitation:
+          type: integer
+          example: 1000
+        domain_limitation:
+          type: integer
+          example: 10
+        workspace_limitation:
+          type: integer
+          example: 10
         created_date:
           type: string
           format: date-time
-          example: "2024-01-01T00:00:00Z"
+          example: "2024-01-15T10:30:00Z"
 
-    WorkspaceStatistics:
+    WorkspaceStats:
       type: object
       properties:
+        workspace_id:
+          type: integer
+          example: 1
+        workspace_name:
+          type: string
+          example: "Marketing Team"
         total_users:
           type: integer
-          example: 8
+          example: 15
+        active_users:
+          type: integer
+          example: 12
         total_domains:
           type: integer
-          example: 3
+          example: 5
         total_articles:
           type: integer
-          example: 156
-        published_articles:
-          type: integer
-          example: 142
-        draft_articles:
-          type: integer
-          example: 14
+          example: 245
         articles_this_period:
           type: integer
-          example: 25
-        active_users_this_period:
+          example: 45
+        published_articles:
           type: integer
-          example: 6
+          example: 200
+        draft_articles:
+          type: integer
+          example: 45
+        total_ai_requests:
+          type: integer
+          example: 1250
+        ai_requests_this_period:
+          type: integer
+          example: 180
         storage_used_mb:
           type: number
           format: float
           example: 1024.5
-        ai_requests_this_period:
-          type: integer
-          example: 89
-        period:
+        created_date:
           type: string
-          example: "30d"
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        last_activity:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:00Z"
 
-    ActivityLog:
+    WorkspaceActivity:
       type: object
       properties:
         id:
-          type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
+          type: integer
+          example: 1
+        workspace_id:
+          type: integer
+          example: 1
         user_id:
-          type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
+          type: integer
+          example: 1
         user_name:
           type: string
           example: "John Doe"
-        action:
+        activity_type:
           type: string
           example: "article_created"
-        description:
+        activity_description:
           type: string
           example: "Created new article 'SEO Best Practices'"
-        entity_type:
+        resource_type:
           type: string
           example: "article"
-        entity_id:
-          type: string
-          format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
-        timestamp:
+        resource_id:
+          type: integer
+          example: 123
+        metadata:
+          type: object
+          example: {"article_title": "SEO Best Practices", "status": "draft"}
+        created_date:
           type: string
           format: date-time
           example: "2024-01-15T10:30:00Z"
@@ -656,6 +656,10 @@ components:
         details:
           type: object
           example: {"name": ["This field is required"]}
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
 
   securitySchemes:
     bearerAuth:
@@ -670,6 +674,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            message: "Authentication token is missing or invalid"
 
     ForbiddenError:
       description: Insufficient permissions to perform this action
@@ -677,6 +684,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "You don't have permission to perform this action"
 
     NotFoundError:
       description: The requested resource was not found
@@ -684,6 +694,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            error: "NotFound"
+            message: "The requested resource was not found"
 
     ValidationError:
       description: Input validation failed
@@ -691,3 +704,8 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            error: "ValidationError"
+            message: "Input validation failed"
+            details:
+              name: ["Workspace name already exists"]
