@@ -1,0 +1,1169 @@
+openapi: 3.0.3
+info:
+  title: User Management Service API
+  description: |
+    Microservice responsible for user authentication, authorization, role management, and user profile management.
+    This service handles user lifecycle, role-based permissions, and workspace user relationships.
+    Based on exact Django model schemas from apiApp/models.py
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5001/api/v1
+    description: Development server
+  - url: https://api.company.com/user-management/v1
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: Users
+    description: User management operations
+  - name: Roles
+    description: Role management operations
+  - name: Permissions
+    description: Permission management operations
+  - name: Invitations
+    description: Invitation code management
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register new user with invitation code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid registration data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_in:
+                    type: integer
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      description: Get paginated list of user details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: boolean
+        - name: role_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserDetail'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Users
+      summary: Create user
+      description: Create new user with role assignment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+
+  /users/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      description: Retrieve specific user details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+        '404':
+          description: User not found
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Update user information
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Soft delete user (set status to false)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: User deleted successfully
+
+  /users/{userId}/workspaces:
+    post:
+      tags:
+        - Users
+      summary: Assign user to workspaces
+      description: Add user to multiple workspaces
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workspace_ids
+              properties:
+                workspace_ids:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 2, 3]
+      responses:
+        '200':
+          description: User assigned to workspaces successfully
+
+  /users/{userId}/api-keys:
+    get:
+      tags:
+        - Users
+      summary: Get user API keys
+      description: Retrieve user's API keys
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: API keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserApiKey'
+
+    post:
+      tags:
+        - Users
+      summary: Generate API key
+      description: Create new API key for user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '201':
+          description: API key generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserApiKey'
+
+  /roles:
+    get:
+      tags:
+        - Roles
+      summary: List roles
+      description: Get all available roles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Roles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Role'
+
+    post:
+      tags:
+        - Roles
+      summary: Create role
+      description: Create new role
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                  example: "content_manager"
+      responses:
+        '201':
+          description: Role created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+  /roles/{roleId}:
+    get:
+      tags:
+        - Roles
+      summary: Get role by ID
+      description: Retrieve specific role details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Role retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+    put:
+      tags:
+        - Roles
+      summary: Update role
+      description: Update role information
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                status:
+                  type: boolean
+      responses:
+        '200':
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+
+  /roles/{roleId}/permissions:
+    get:
+      tags:
+        - Roles
+      summary: Get role permissions
+      description: Get all permissions assigned to a role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Role permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleHasPermissions'
+
+    post:
+      tags:
+        - Roles
+      summary: Assign permissions to role
+      description: Add permissions to a role
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - permission_ids
+              properties:
+                permission_ids:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 2, 3]
+      responses:
+        '200':
+          description: Permissions assigned successfully
+
+  /permissions:
+    get:
+      tags:
+        - Permissions
+      summary: List permissions
+      description: Get all available permissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: group
+          in: query
+          description: Filter by permission group
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Permission'
+
+    post:
+      tags:
+        - Permissions
+      summary: Create permission
+      description: Create new permission
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - description
+                - group
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                  example: "create_article"
+                description:
+                  type: string
+                  maxLength: 200
+                  example: "Permission to create articles"
+                group:
+                  type: string
+                  maxLength: 200
+                  example: "article_management"
+      responses:
+        '201':
+          description: Permission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Permission'
+
+  /invitation-codes:
+    get:
+      tags:
+        - Invitations
+      summary: List invitation codes
+      description: Get all invitation codes with usage status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: used
+          in: query
+          description: Filter by usage status
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Invitation codes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitation_codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InvitationCodeDetail'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Invitations
+      summary: Generate invitation code
+      description: Create new invitation code with limitations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                article_limitation:
+                  type: integer
+                  default: 1000
+                  example: 1000
+                domain_limitation:
+                  type: integer
+                  default: 10
+                  example: 10
+                workspace_limitation:
+                  type: integer
+                  default: 10
+                  example: 10
+                invitation_code:
+                  type: string
+                  maxLength: 100
+                  example: "CUSTOM-CODE-123"
+                  description: "Optional custom code, auto-generated if not provided"
+      responses:
+        '201':
+          description: Invitation code generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationCodeDetail'
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          example: "securePassword123"
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/UserDetail'
+        expires_in:
+          type: integer
+          example: 3600
+          description: Token expiration time in seconds
+
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - invitation_code
+      properties:
+        username:
+          type: string
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        password:
+          type: string
+          format: password
+          example: "securePassword123"
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Doe"
+        invitation_code:
+          type: string
+          example: "INV123456"
+
+    DjangoUser:
+      type: object
+      description: "Django's built-in User model"
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Doe"
+        is_active:
+          type: boolean
+          example: true
+        is_staff:
+          type: boolean
+          example: false
+        date_joined:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        last_login:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+          nullable: true
+
+    UserDetail:
+      type: object
+      description: "user_detail model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+          description: "ForeignKey to Django User model"
+          nullable: true
+        role_id:
+          type: integer
+          example: 1
+          description: "ForeignKey to role model"
+          nullable: true
+        workspace_id:
+          type: array
+          items:
+            type: integer
+          example: [1, 2, 3]
+          description: "ManyToManyField with workspace model"
+        article_limitation:
+          type: integer
+          example: 1000
+          default: 1000
+          nullable: true
+        domain_limitation:
+          type: integer
+          example: 10
+          default: 10
+          nullable: true
+        workspace_limitation:
+          type: integer
+          example: 10
+          default: 10
+          nullable: true
+        full_name:
+          type: string
+          maxLength: 100
+          example: "John Doe"
+          default: ""
+        profile_image:
+          type: string
+          example: "user/profile.jpg"
+          description: "ImageField upload_to='user'"
+          default: ""
+        status:
+          type: boolean
+          example: true
+          default: true
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: integer
+          example: 1
+          description: "ForeignKey to User model with related_name='created_by'"
+          nullable: true
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - full_name
+      properties:
+        username:
+          type: string
+          example: "newuser"
+        email:
+          type: string
+          format: email
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "SecurePass123!"
+        first_name:
+          type: string
+          example: "Jane"
+        last_name:
+          type: string
+          example: "Smith"
+        full_name:
+          type: string
+          maxLength: 100
+          example: "Jane Smith"
+        role_id:
+          type: integer
+          example: 2
+        workspace_ids:
+          type: array
+          items:
+            type: integer
+          example: [1, 2]
+        article_limitation:
+          type: integer
+          default: 1000
+          example: 1000
+        domain_limitation:
+          type: integer
+          default: 10
+          example: 10
+        workspace_limitation:
+          type: integer
+          default: 10
+          example: 10
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        full_name:
+          type: string
+          maxLength: 100
+        role_id:
+          type: integer
+        workspace_ids:
+          type: array
+          items:
+            type: integer
+        status:
+          type: boolean
+        article_limitation:
+          type: integer
+        domain_limitation:
+          type: integer
+        workspace_limitation:
+          type: integer
+        profile_image:
+          type: string
+          format: uri
+
+    Role:
+      type: object
+      description: "role model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          maxLength: 200
+          example: "admin"
+          description: "Automatically converted to lowercase on save"
+          default: ""
+        status:
+          type: boolean
+          example: true
+          default: true
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    Permission:
+      type: object
+      description: "permission model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          maxLength: 200
+          example: "create_article"
+          default: ""
+        description:
+          type: string
+          maxLength: 200
+          example: "Permission to create articles"
+          default: ""
+        group:
+          type: string
+          maxLength: 200
+          example: "article_management"
+          default: ""
+        status:
+          type: boolean
+          example: true
+          default: true
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    RoleHasPermissions:
+      type: object
+      description: "role_has_permissions model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        permission_id:
+          type: integer
+          example: 1
+          description: "ForeignKey to permission model"
+        role_id:
+          type: integer
+          example: 1
+          description: "ForeignKey to role model"
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    InvitationCodeDetail:
+      type: object
+      description: "invitation_code_detail model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        invitation_code:
+          type: string
+          maxLength: 100
+          example: "INV123456"
+          description: "Unique invitation code"
+          default: ""
+        article_limitation:
+          type: integer
+          example: 1000
+          default: 1000
+          nullable: true
+        domain_limitation:
+          type: integer
+          example: 10
+          default: 10
+          nullable: true
+        workspace_limitation:
+          type: integer
+          example: 10
+          default: 10
+          nullable: true
+        used:
+          type: boolean
+          example: false
+          default: false
+        used_date:
+          type: string
+          format: date
+          example: "2024-01-15"
+          nullable: true
+        email:
+          type: integer
+          example: 1
+          description: "ForeignKey to User model"
+          nullable: true
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: integer
+          example: 1
+          description: "ForeignKey to User model with related_name='created_by_user'"
+          nullable: true
+
+    UserApiKey:
+      type: object
+      description: "user_api_key model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_detail_id:
+          type: integer
+          example: 1
+          description: "ForeignKey to user_detail model"
+          nullable: true
+        api_key:
+          type: string
+          maxLength: 200
+          example: "sk-1234567890abcdef"
+          default: ""
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: integer
+          example: 1
+          description: "ForeignKey to User model"
+          nullable: true
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        pages:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"email": ["This field is required"]}
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            message: "Authentication token is missing or invalid"
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "You don't have permission to perform this action"
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "NotFound"
+            message: "The requested resource was not found"
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "ValidationError"
+            message: "Input validation failed"
+            details:
+              email: ["Enter a valid email address"]
+              password: ["Password must be at least 8 characters long"]

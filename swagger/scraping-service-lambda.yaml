@@ -1,0 +1,842 @@
+openapi: 3.0.3
+info:
+  title: Scraping Service API (Lambda)
+  description: |
+    External Lambda service responsible for URL scraping, SERP (Search Engine Results Page) scraping, 
+    and web page selector extraction. This service handles all external content retrieval operations.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: https://api.company.com/lambda/scraping/v1
+    description: Production Lambda endpoint
+  - url: https://staging-api.company.com/lambda/scraping/v1
+    description: Staging Lambda endpoint
+
+tags:
+  - name: URL Scraping
+    description: Web page content extraction
+  - name: SERP Scraping
+    description: Search engine results page scraping
+  - name: Selector Service
+    description: CSS/XPath selector testing and extraction
+  - name: Proxy Management
+    description: Proxy rotation and management
+
+paths:
+  /url-scraper:
+    post:
+      tags:
+        - URL Scraping
+      summary: Scrape URL content
+      description: Extract content from a given URL using various scraping methods
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/URLScrapingRequest'
+      responses:
+        '200':
+          description: URL scraped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/URLScrapingResponse'
+        '400':
+          description: Invalid URL or scraping parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '408':
+          description: Scraping timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal scraping error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /url-scraper/bulk:
+    post:
+      tags:
+        - URL Scraping
+      summary: Bulk URL scraping
+      description: Scrape multiple URLs in a single request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - urls
+              properties:
+                urls:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/URLScrapingRequest'
+                  maxItems: 50
+                  description: Maximum 50 URLs per batch
+                parallel_limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                  default: 5
+                  description: Number of concurrent scraping operations
+      responses:
+        '200':
+          description: Bulk scraping completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BulkScrapingResult'
+                  summary:
+                    type: object
+                    properties:
+                      total_requested:
+                        type: integer
+                        example: 10
+                      successful:
+                        type: integer
+                        example: 8
+                      failed:
+                        type: integer
+                        example: 2
+                      total_processing_time_ms:
+                        type: integer
+                        example: 15000
+
+  /serp-scraper:
+    post:
+      tags:
+        - SERP Scraping
+      summary: Scrape search engine results
+      description: Extract search results from search engines (Google, Bing, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SERPScrapingRequest'
+      responses:
+        '200':
+          description: SERP scraped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SERPScrapingResponse'
+        '400':
+          description: Invalid search parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Search engine rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /serp-scraper/keywords:
+    post:
+      tags:
+        - SERP Scraping
+      summary: Scrape multiple keywords
+      description: Get search results for multiple keywords
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - keywords
+                - search_engine
+              properties:
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                  maxItems: 20
+                  example: ["SEO best practices", "content marketing", "digital marketing"]
+                search_engine:
+                  type: string
+                  enum: [google, bing, yahoo, duckduckgo]
+                  example: "google"
+                location:
+                  type: string
+                  example: "United States"
+                language:
+                  type: string
+                  example: "en"
+                num_results:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 10
+                include_ads:
+                  type: boolean
+                  default: false
+                device_type:
+                  type: string
+                  enum: [desktop, mobile, tablet]
+                  default: desktop
+      responses:
+        '200':
+          description: Keywords scraped successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        keyword:
+                          type: string
+                        search_results:
+                          $ref: '#/components/schemas/SERPScrapingResponse'
+
+  /selector-service:
+    post:
+      tags:
+        - Selector Service
+      summary: Test CSS/XPath selectors
+      description: Test and extract content using CSS or XPath selectors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectorTestRequest'
+      responses:
+        '200':
+          description: Selector test completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectorTestResponse'
+        '400':
+          description: Invalid selector or URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /selector-service/validate:
+    post:
+      tags:
+        - Selector Service
+      summary: Validate selectors
+      description: Validate CSS/XPath selector syntax without executing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - selectors
+              properties:
+                selectors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: "title"
+                      selector:
+                        type: string
+                        example: "h1.main-title"
+                      selector_type:
+                        type: string
+                        enum: [css, xpath]
+                        default: css
+                  maxItems: 50
+      responses:
+        '200':
+          description: Selectors validated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  validation_results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        selector:
+                          type: string
+                        is_valid:
+                          type: boolean
+                        error_message:
+                          type: string
+
+  /proxy-manager/rotate:
+    post:
+      tags:
+        - Proxy Management
+      summary: Rotate proxy servers
+      description: Get a new proxy server for scraping operations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_proxy:
+                  type: string
+                  description: Currently used proxy to exclude
+                  example: "http://proxy1.example.com:8080"
+                region:
+                  type: string
+                  description: Preferred proxy region
+                  example: "US"
+                proxy_type:
+                  type: string
+                  enum: [http, socks5]
+                  default: http
+      responses:
+        '200':
+          description: New proxy provided successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  proxy_url:
+                    type: string
+                    example: "http://proxy2.example.com:8080"
+                  proxy_region:
+                    type: string
+                    example: "US"
+                  proxy_type:
+                    type: string
+                    example: "http"
+                  expires_at:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T12:00:00Z"
+        '503':
+          description: No available proxies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /proxy-manager/health:
+    get:
+      tags:
+        - Proxy Management
+      summary: Check proxy health
+      description: Get status of proxy servers
+      responses:
+        '200':
+          description: Proxy health status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_proxies:
+                    type: integer
+                    example: 25
+                  healthy_proxies:
+                    type: integer
+                    example: 23
+                  unhealthy_proxies:
+                    type: integer
+                    example: 2
+                  proxy_regions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        region:
+                          type: string
+                        healthy_count:
+                          type: integer
+                        total_count:
+                          type: integer
+
+  /health:
+    get:
+      tags:
+        - Selector Service
+      summary: Health check
+      description: Check if the Lambda service is healthy
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  uptime_seconds:
+                    type: integer
+                    example: 3600
+                  memory_usage_mb:
+                    type: number
+                    format: float
+                    example: 128.5
+
+components:
+  schemas:
+    URLScrapingRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://example.com/article"
+          description: Target URL to scrape
+        method:
+          type: string
+          enum: [requests, selenium, playwright]
+          default: requests
+          description: Scraping method to use
+        user_agent:
+          type: string
+          example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          description: Custom user agent string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          example: {"Accept-Language": "en-US,en;q=0.9"}
+          description: Additional HTTP headers
+        timeout:
+          type: integer
+          minimum: 5
+          maximum: 120
+          default: 30
+          description: Request timeout in seconds
+        wait_time:
+          type: integer
+          minimum: 0
+          maximum: 30
+          default: 0
+          description: Wait time before scraping (for dynamic content)
+        proxy:
+          type: string
+          example: "http://proxy.example.com:8080"
+          description: Proxy server to use
+        selectors:
+          type: object
+          description: CSS/XPath selectors for content extraction
+          properties:
+            title:
+              $ref: '#/components/schemas/ContentSelector'
+            content:
+              $ref: '#/components/schemas/ContentSelector'
+            meta_description:
+              $ref: '#/components/schemas/ContentSelector'
+            meta_keywords:
+              $ref: '#/components/schemas/ContentSelector'
+            author:
+              $ref: '#/components/schemas/ContentSelector'
+            published_date:
+              $ref: '#/components/schemas/ContentSelector'
+            featured_image:
+              $ref: '#/components/schemas/ContentSelector'
+            categories:
+              $ref: '#/components/schemas/ContentSelector'
+            tags:
+              $ref: '#/components/schemas/ContentSelector'
+        javascript_enabled:
+          type: boolean
+          default: false
+          description: Enable JavaScript rendering
+        capture_screenshot:
+          type: boolean
+          default: false
+          description: Capture page screenshot
+        extract_links:
+          type: boolean
+          default: false
+          description: Extract all links from page
+
+    ContentSelector:
+      type: object
+      required:
+        - selector
+      properties:
+        selector:
+          type: string
+          example: "h1.main-title"
+          description: CSS selector or XPath
+        selector_type:
+          type: string
+          enum: [css, xpath]
+          default: css
+        attribute:
+          type: string
+          example: "text"
+          description: Attribute to extract (text, href, src, etc.)
+        multiple:
+          type: boolean
+          default: false
+          description: Extract multiple elements
+        required:
+          type: boolean
+          default: false
+          description: Mark as required field
+
+    URLScrapingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        url:
+          type: string
+          example: "https://example.com/article"
+        status_code:
+          type: integer
+          example: 200
+        processing_time_ms:
+          type: integer
+          example: 2500
+        content_length:
+          type: integer
+          example: 45000
+        extracted_data:
+          type: object
+          properties:
+            title:
+              type: string
+              example: "Complete Guide to SEO"
+            content:
+              type: string
+              example: "<p>SEO is the practice of...</p>"
+            meta_description:
+              type: string
+              example: "Learn everything about SEO optimization"
+            meta_keywords:
+              type: string
+              example: "SEO, optimization, search engine"
+            author:
+              type: string
+              example: "John Smith"
+            published_date:
+              type: string
+              example: "2024-01-15"
+            featured_image:
+              type: string
+              example: "https://example.com/images/seo-guide.jpg"
+            categories:
+              type: array
+              items:
+                type: string
+              example: ["SEO", "Digital Marketing"]
+            tags:
+              type: array
+              items:
+                type: string
+              example: ["optimization", "ranking", "keywords"]
+        raw_html:
+          type: string
+          description: Raw HTML content (if requested)
+        screenshot_url:
+          type: string
+          description: Screenshot URL (if captured)
+          example: "https://storage.example.com/screenshots/abc123.png"
+        links:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              text:
+                type: string
+              type:
+                type: string
+          description: Extracted links (if requested)
+        errors:
+          type: array
+          items:
+            type: string
+          description: Any errors encountered during scraping
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Any warnings during scraping
+
+    BulkScrapingResult:
+      type: object
+      properties:
+        url:
+          type: string
+          example: "https://example.com/article"
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/URLScrapingResponse'
+        error:
+          type: string
+          example: "Connection timeout"
+
+    SERPScrapingRequest:
+      type: object
+      required:
+        - query
+        - search_engine
+      properties:
+        query:
+          type: string
+          example: "best SEO practices 2024"
+          description: Search query
+        search_engine:
+          type: string
+          enum: [google, bing, yahoo, duckduckgo]
+          example: "google"
+        location:
+          type: string
+          example: "United States"
+          description: Geographic location for search
+        language:
+          type: string
+          example: "en"
+          description: Search language
+        num_results:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+          description: Number of results to return
+        include_ads:
+          type: boolean
+          default: false
+          description: Include sponsored/ad results
+        include_snippets:
+          type: boolean
+          default: true
+          description: Include result snippets
+        device_type:
+          type: string
+          enum: [desktop, mobile, tablet]
+          default: desktop
+        safe_search:
+          type: string
+          enum: [off, moderate, strict]
+          default: moderate
+        date_filter:
+          type: string
+          enum: [none, day, week, month, year]
+          default: none
+          description: Filter results by date
+
+    SERPScrapingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        query:
+          type: string
+          example: "best SEO practices 2024"
+        search_engine:
+          type: string
+          example: "google"
+        total_results:
+          type: integer
+          example: 1250000
+        processing_time_ms:
+          type: integer
+          example: 3500
+        organic_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        paid_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+          description: Sponsored/ad results (if requested)
+        featured_snippet:
+          $ref: '#/components/schemas/FeaturedSnippet'
+        people_also_ask:
+          type: array
+          items:
+            type: object
+            properties:
+              question:
+                type: string
+              answer:
+                type: string
+              source_url:
+                type: string
+        related_searches:
+          type: array
+          items:
+            type: string
+          example: ["SEO techniques", "search optimization", "website ranking"]
+
+    SearchResult:
+      type: object
+      properties:
+        position:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "The Ultimate Guide to SEO Best Practices"
+        url:
+          type: string
+          example: "https://example.com/seo-guide"
+        domain:
+          type: string
+          example: "example.com"
+        snippet:
+          type: string
+          example: "Learn the most effective SEO practices to improve your website's ranking..."
+        date:
+          type: string
+          example: "2024-01-10"
+        cached_url:
+          type: string
+          example: "https://webcache.googleusercontent.com/..."
+
+    FeaturedSnippet:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [paragraph, list, table, video]
+          example: "paragraph"
+        content:
+          type: string
+          example: "SEO best practices include keyword research, content optimization..."
+        source_url:
+          type: string
+          example: "https://example.com/seo-guide"
+        source_title:
+          type: string
+          example: "Complete SEO Guide"
+
+    SelectorTestRequest:
+      type: object
+      required:
+        - url
+        - selectors
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://example.com/test-page"
+        selectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentSelector'
+        method:
+          type: string
+          enum: [requests, selenium, playwright]
+          default: requests
+        user_agent:
+          type: string
+        timeout:
+          type: integer
+          default: 30
+        javascript_enabled:
+          type: boolean
+          default: false
+
+    SelectorTestResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        url:
+          type: string
+          example: "https://example.com/test-page"
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              selector:
+                type: string
+                example: "h1.main-title"
+              selector_type:
+                type: string
+                example: "css"
+              found:
+                type: boolean
+                example: true
+              count:
+                type: integer
+                example: 1
+                description: Number of elements found
+              extracted_value:
+                type: string
+                example: "Welcome to Our Site"
+              error:
+                type: string
+                description: Error message if selector failed
+        page_info:
+          type: object
+          properties:
+            title:
+              type: string
+            url:
+              type: string
+            status_code:
+              type: integer
+            content_length:
+              type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ScrapingError"
+        message:
+          type: string
+          example: "Failed to scrape URL: Connection timeout"
+        details:
+          type: object
+          example: {"url": "https://example.com", "timeout": 30}
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"

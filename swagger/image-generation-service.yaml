@@ -1,0 +1,925 @@
+openapi: 3.0.3
+info:
+  title: Image Generation Service API
+  description: |
+    Microservice responsible for image generation, template management, and ImageKit integration.
+    This service handles image creation for articles, template management, and image processing.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5006/api/v1
+    description: Development server
+  - url: https://api.company.com/image-generation/v1
+    description: Production server
+
+tags:
+  - name: ImageKit Configuration
+    description: ImageKit API configuration
+  - name: Image Templates
+    description: Image template management
+  - name: Image Tags
+    description: Image tag management
+  - name: Image Categories
+    description: Image template category management
+  - name: Image Generation
+    description: Image generation operations
+
+paths:
+  /image-configs:
+    get:
+      tags:
+        - ImageKit Configuration
+      summary: List ImageKit configurations
+      description: Get all ImageKit configurations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          description: Filter by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: ImageKit configurations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImageKitConfiguration'
+
+    post:
+      tags:
+        - ImageKit Configuration
+      summary: Create ImageKit configuration
+      description: Create a new ImageKit API configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImageKitConfigRequest'
+      responses:
+        '201':
+          description: ImageKit configuration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageKitConfiguration'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /image-configs/{config_id}:
+    get:
+      tags:
+        - ImageKit Configuration
+      summary: Get ImageKit configuration by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: ImageKit configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageKitConfiguration'
+
+    put:
+      tags:
+        - ImageKit Configuration
+      summary: Update ImageKit configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateImageKitConfigRequest'
+      responses:
+        '200':
+          description: ImageKit configuration updated successfully
+
+    delete:
+      tags:
+        - ImageKit Configuration
+      summary: Delete ImageKit configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: ImageKit configuration deleted successfully
+
+  /image-configs/{config_id}/test:
+    post:
+      tags:
+        - ImageKit Configuration
+      summary: Test ImageKit configuration
+      description: Test connection to ImageKit API
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Test successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "ImageKit connection successful"
+                  account_info:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      plan:
+                        type: string
+                      storage_used:
+                        type: integer
+        '400':
+          description: Test failed
+
+  /image-templates:
+    get:
+      tags:
+        - Image Templates
+      summary: List image templates
+      description: Get all image templates with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: category_id
+          in: query
+          description: Filter by category
+          schema:
+            type: string
+            format: uuid
+        - name: tag_id
+          in: query
+          description: Filter by tag
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Image templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImageTemplate'
+
+    post:
+      tags:
+        - Image Templates
+      summary: Create image template
+      description: Create a new image template
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImageTemplateRequest'
+      responses:
+        '201':
+          description: Image template created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageTemplate'
+
+  /image-templates/{template_id}:
+    get:
+      tags:
+        - Image Templates
+      summary: Get image template by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Image template retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageTemplateDetail'
+
+    put:
+      tags:
+        - Image Templates
+      summary: Update image template
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateImageTemplateRequest'
+      responses:
+        '200':
+          description: Image template updated successfully
+
+    delete:
+      tags:
+        - Image Templates
+      summary: Delete image template
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Image template deleted successfully
+
+  /image-tags:
+    get:
+      tags:
+        - Image Tags
+      summary: List image tags
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Image tags retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImageTag'
+
+    post:
+      tags:
+        - Image Tags
+      summary: Create image tag
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImageTagRequest'
+      responses:
+        '201':
+          description: Image tag created successfully
+
+  /image-tags/{tag_id}:
+    get:
+      tags:
+        - Image Tags
+      summary: Get image tag by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Image tag retrieved successfully
+
+    put:
+      tags:
+        - Image Tags
+      summary: Update image tag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateImageTagRequest'
+      responses:
+        '200':
+          description: Image tag updated successfully
+
+    delete:
+      tags:
+        - Image Tags
+      summary: Delete image tag
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Image tag deleted successfully
+
+  /image-categories:
+    get:
+      tags:
+        - Image Categories
+      summary: List image template categories
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Image categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImageTemplateCategory'
+
+    post:
+      tags:
+        - Image Categories
+      summary: Create image template category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImageCategoryRequest'
+      responses:
+        '201':
+          description: Image category created successfully
+
+  /generate:
+    post:
+      tags:
+        - Image Generation
+      summary: Generate image
+      description: Generate image for article using template
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateImageRequest'
+      responses:
+        '202':
+          description: Image generation queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Image generation queued"
+                  estimated_time:
+                    type: integer
+                    example: 10
+        '400':
+          description: Invalid generation request
+
+  /generate/{job_id}/status:
+    get:
+      tags:
+        - Image Generation
+      summary: Get image generation status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageGenerationStatus'
+
+  /generate/bulk:
+    post:
+      tags:
+        - Image Generation
+      summary: Generate multiple images
+      description: Generate multiple images in batch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requests
+              properties:
+                requests:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/GenerateImageRequest'
+                  maxItems: 20
+      responses:
+        '202':
+          description: Bulk image generation queued
+
+components:
+  schemas:
+    ImageKitConfiguration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        public_key:
+          type: string
+          example: "public_xyz123"
+        url_endpoint:
+          type: string
+          example: "https://ik.imagekit.io/your_imagekit_id"
+        status:
+          type: boolean
+          example: true
+        default_section:
+          type: boolean
+          example: false
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateImageKitConfigRequest:
+      type: object
+      required:
+        - workspace_id
+        - public_key
+        - private_key
+        - url_endpoint
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        public_key:
+          type: string
+          example: "public_xyz123"
+        private_key:
+          type: string
+          example: "private_abc456"
+        url_endpoint:
+          type: string
+          example: "https://ik.imagekit.io/your_imagekit_id"
+        default_section:
+          type: boolean
+          default: false
+
+    UpdateImageKitConfigRequest:
+      type: object
+      properties:
+        public_key:
+          type: string
+        private_key:
+          type: string
+        url_endpoint:
+          type: string
+        status:
+          type: boolean
+        default_section:
+          type: boolean
+
+    ImageTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Article Featured Image"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        template_image_path:
+          type: string
+          example: "/templates/featured-image-template.jpg"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    ImageTemplateDetail:
+      allOf:
+        - $ref: '#/components/schemas/ImageTemplate'
+        - type: object
+          properties:
+            template_json:
+              type: string
+              example: '{"layers": [{"type": "text", "content": "{title}", "x": 100, "y": 50}]}'
+            tags:
+              type: array
+              items:
+                $ref: '#/components/schemas/ImageTag'
+            categories:
+              type: array
+              items:
+                $ref: '#/components/schemas/ImageTemplateCategory'
+
+    CreateImageTemplateRequest:
+      type: object
+      required:
+        - name
+        - workspace_id
+        - template_json
+        - template_image_path
+      properties:
+        name:
+          type: string
+          example: "Blog Post Template"
+        workspace_id:
+          type: string
+          format: uuid
+        template_json:
+          type: string
+          example: '{"layers": [{"type": "text", "content": "{title}"}]}'
+        template_image_path:
+          type: string
+          example: "/templates/blog-template.jpg"
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpdateImageTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        template_json:
+          type: string
+        template_image_path:
+          type: string
+        status:
+          type: boolean
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    ImageTag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Featured Image"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateImageTagRequest:
+      type: object
+      required:
+        - workspace_id
+        - name
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Blog Images"
+
+    UpdateImageTagRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: boolean
+
+    ImageTemplateCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "Article Images"
+        status:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateImageCategoryRequest:
+      type: object
+      required:
+        - workspace_id
+        - name
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Social Media Images"
+
+    GenerateImageRequest:
+      type: object
+      required:
+        - template_id
+        - variables
+      properties:
+        template_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        variables:
+          type: object
+          example: {"title": "10 SEO Tips", "subtitle": "For Beginners", "author": "John Doe"}
+        article_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        output_format:
+          type: string
+          enum: [jpg, png, webp]
+          default: jpg
+        quality:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 90
+        width:
+          type: integer
+          example: 1200
+        height:
+          type: integer
+          example: 630
+
+    ImageGenerationStatus:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        status:
+          type: string
+          enum: [queued, processing, completed, failed]
+          example: "completed"
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 100
+        result:
+          type: object
+          properties:
+            image_url:
+              type: string
+              example: "https://ik.imagekit.io/demo/generated_image_123.jpg"
+            image_id:
+              type: string
+              example: "img_123456"
+            file_size:
+              type: integer
+              example: 125430
+            dimensions:
+              type: object
+              properties:
+                width:
+                  type: integer
+                  example: 1200
+                height:
+                  type: integer
+                  example: 630
+        error_message:
+          type: string
+          example: "Template processing failed"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        completed_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:10Z"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"template_id": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

@@ -1,0 +1,1031 @@
+openapi: 3.0.3
+info:
+  title: Article Management Service API
+  description: |
+    Microservice responsible for article creation, management, and publishing to WordPress.
+    This service handles the complete article lifecycle from creation to publication.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5004/api/v1
+    description: Development server
+  - url: https://api.company.com/article-management/v1
+    description: Production server
+
+tags:
+  - name: Articles
+    description: Article management operations
+  - name: Article Types
+    description: Article type configuration
+  - name: Publishing
+    description: WordPress publishing operations
+  - name: Content
+    description: Article content management
+  - name: Analytics
+    description: Article analytics and statistics
+
+paths:
+  /articles:
+    get:
+      tags:
+        - Articles
+      summary: List articles
+      description: Get paginated list of articles with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: domain_id
+          in: query
+          description: Filter articles by domain
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          description: Filter articles by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: wp_status
+          in: query
+          description: Filter by WordPress status
+          schema:
+            type: string
+            enum: [publish, draft, future, trash]
+        - name: article_status
+          in: query
+          description: Filter by article processing status
+          schema:
+            type: string
+            enum: [initiate, success, failed, review]
+        - name: search
+          in: query
+          description: Search article titles and keywords
+          schema:
+            type: string
+        - name: created_by
+          in: query
+          description: Filter by creator
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Articles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  articles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Articles
+      summary: Create article
+      description: Create a new article for processing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateArticleRequest'
+      responses:
+        '201':
+          description: Article created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Article'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /articles/bulk:
+    post:
+      tags:
+        - Articles
+      summary: Create multiple articles
+      description: Create multiple articles in batch for processing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - articles
+              properties:
+                articles:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateArticleRequest'
+                  maxItems: 50
+      responses:
+        '201':
+          description: Articles created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created_count:
+                    type: integer
+                    example: 10
+                  failed_count:
+                    type: integer
+                    example: 0
+                  articles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+
+  /articles/{article_id}:
+    get:
+      tags:
+        - Articles
+      summary: Get article by ID
+      description: Retrieve detailed article information
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Article retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Articles
+      summary: Update article
+      description: Update article information and content
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateArticleRequest'
+      responses:
+        '200':
+          description: Article updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Article'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags:
+        - Articles
+      summary: Delete article
+      description: Delete article from local database and optionally from WordPress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+        - name: delete_from_wp
+          in: query
+          description: Also delete from WordPress
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '204':
+          description: Article deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles/{article_id}/publish:
+    post:
+      tags:
+        - Publishing
+      summary: Publish article to WordPress
+      description: Publish or update article on WordPress site
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wp_status:
+                  type: string
+                  enum: [publish, draft, future]
+                  default: publish
+                wp_schedule_time:
+                  type: string
+                  format: date-time
+                  description: Required if wp_status is 'future'
+      responses:
+        '200':
+          description: Article published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wp_post_id:
+                    type: string
+                    example: "123"
+                  wp_url:
+                    type: string
+                    example: "https://example.com/my-article"
+                  status:
+                    type: string
+                    example: "published"
+        '400':
+          description: Article cannot be published (incomplete content)
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /articles/{article_id}/content:
+    get:
+      tags:
+        - Content
+      summary: Get article content
+      description: Retrieve full article content including generated text
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Content retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleContent'
+
+    put:
+      tags:
+        - Content
+      summary: Update article content
+      description: Update article content and metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContentRequest'
+      responses:
+        '200':
+          description: Content updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleContent'
+
+  /articles/{article_id}/regenerate:
+    post:
+      tags:
+        - Content
+      summary: Regenerate article content
+      description: Trigger AI regeneration of article content
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          description: Article UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sections:
+                  type: array
+                  items:
+                    type: string
+                    enum: [title, content, meta_description, meta_keywords]
+                  example: ["content", "meta_description"]
+      responses:
+        '202':
+          description: Regeneration queued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Article regeneration queued"
+                  job_id:
+                    type: string
+                    format: uuid
+
+  /article-types:
+    get:
+      tags:
+        - Article Types
+      summary: List article types
+      description: Get all available article types
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          description: Filter by category
+          schema:
+            type: string
+            enum: [keyword, url]
+        - name: article_category
+          in: query
+          description: Filter by article category
+          schema:
+            type: string
+            enum: [generative, rephrase, outliner, manual]
+      responses:
+        '200':
+          description: Article types retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArticleType'
+
+    post:
+      tags:
+        - Article Types
+      summary: Create article type
+      description: Create a new article type configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateArticleTypeRequest'
+      responses:
+        '201':
+          description: Article type created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleType'
+
+  /article-types/{type_id}:
+    get:
+      tags:
+        - Article Types
+      summary: Get article type by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Article type retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleTypeDetail'
+
+    put:
+      tags:
+        - Article Types
+      summary: Update article type
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateArticleTypeRequest'
+      responses:
+        '200':
+          description: Article type updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleType'
+
+    delete:
+      tags:
+        - Article Types
+      summary: Delete article type
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Article type deleted successfully
+
+  /article-types/{type_id}/fields:
+    get:
+      tags:
+        - Article Types
+      summary: Get article type fields
+      description: Get form fields configuration for article type
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Fields retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArticleTypeField'
+
+  /analytics/articles:
+    get:
+      tags:
+        - Analytics
+      summary: Get article analytics
+      description: Retrieve article performance analytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: domain_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, 1y]
+            default: 30d
+      responses:
+        '200':
+          description: Analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArticleAnalytics'
+
+components:
+  schemas:
+    Article:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        wp_title:
+          type: string
+          example: "10 Best SEO Practices for 2024"
+        wp_slug:
+          type: string
+          example: "10-best-seo-practices-2024"
+        keyword:
+          type: string
+          example: "SEO best practices"
+        url:
+          type: string
+          example: "https://competitor.com/seo-guide"
+        wp_status:
+          type: string
+          enum: [publish, draft, future, trash]
+          example: "publish"
+        article_status:
+          type: string
+          enum: [initiate, success, failed, review]
+          example: "success"
+        wp_post_id:
+          type: string
+          example: "456"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        article_type_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        prompt_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        wp_author_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        wp_schedule_time:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        article_priority:
+          type: integer
+          example: 1
+        created_by:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    ArticleDetail:
+      allOf:
+        - $ref: '#/components/schemas/Article'
+        - type: object
+          properties:
+            wp_content:
+              type: string
+              example: "<p>Content of the article...</p>"
+            wp_excerpt:
+              type: string
+              example: "Brief summary of the article"
+            meta_description:
+              type: string
+              example: "Learn the best SEO practices"
+            meta_tag:
+              type: string
+              example: "seo,best practices,2024"
+            meta_keyword:
+              type: string
+              example: "SEO, optimization, ranking"
+            wp_featured_image:
+              type: string
+              example: "https://example.com/images/featured.jpg"
+            wp_categories:
+              type: array
+              items:
+                type: string
+                format: uuid
+            wp_tags:
+              type: array
+              items:
+                type: string
+                format: uuid
+            ai_content_flags:
+              type: object
+              example: {"title_generated": true, "content_generated": true}
+
+    CreateArticleRequest:
+      type: object
+      required:
+        - domain_id
+        - article_type_id
+        - prompt_id
+      properties:
+        keyword:
+          type: string
+          example: "digital marketing trends"
+        url:
+          type: string
+          example: "https://competitor.com/marketing-trends"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        article_type_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        prompt_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        wp_author_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        wp_category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        wp_tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        wp_status:
+          type: string
+          enum: [publish, draft, future]
+          default: draft
+        wp_schedule_time:
+          type: string
+          format: date-time
+        article_priority:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+
+    UpdateArticleRequest:
+      type: object
+      properties:
+        wp_title:
+          type: string
+        wp_slug:
+          type: string
+        keyword:
+          type: string
+        wp_status:
+          type: string
+          enum: [publish, draft, future, trash]
+        wp_author_id:
+          type: string
+          format: uuid
+        wp_category_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        wp_tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        wp_schedule_time:
+          type: string
+          format: date-time
+        article_priority:
+          type: integer
+
+    ArticleContent:
+      type: object
+      properties:
+        wp_title:
+          type: string
+          example: "Complete Guide to SEO"
+        wp_content:
+          type: string
+          example: "<h1>Introduction</h1><p>SEO is essential...</p>"
+        wp_excerpt:
+          type: string
+          example: "Learn everything about SEO"
+        meta_description:
+          type: string
+          example: "Complete guide to SEO optimization"
+        meta_keyword:
+          type: string
+          example: "SEO, optimization, guide"
+        word_count:
+          type: integer
+          example: 1500
+        heading_count:
+          type: integer
+          example: 8
+        image_count:
+          type: integer
+          example: 3
+        readability_score:
+          type: number
+          format: float
+          example: 75.5
+
+    UpdateContentRequest:
+      type: object
+      properties:
+        wp_title:
+          type: string
+        wp_content:
+          type: string
+        wp_excerpt:
+          type: string
+        meta_description:
+          type: string
+        meta_keyword:
+          type: string
+
+    ArticleType:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "SEO Article"
+        category:
+          type: string
+          enum: [keyword, url]
+          example: "keyword"
+        article_category:
+          type: string
+          enum: [generative, rephrase, outliner, manual]
+          example: "generative"
+        title:
+          type: string
+          example: "Generate SEO optimized articles"
+        description:
+          type: string
+          example: "Creates comprehensive SEO articles"
+        article_type_image:
+          type: string
+          format: uri
+          example: "https://example.com/images/seo-type.jpg"
+        rabbitmq_worker:
+          type: string
+          example: "seo_article_worker"
+        status:
+          type: boolean
+          example: true
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    ArticleTypeDetail:
+      allOf:
+        - $ref: '#/components/schemas/ArticleType'
+        - type: object
+          properties:
+            fields:
+              type: array
+              items:
+                $ref: '#/components/schemas/ArticleTypeField'
+
+    CreateArticleTypeRequest:
+      type: object
+      required:
+        - name
+        - category
+        - article_category
+      properties:
+        name:
+          type: string
+          example: "Blog Post Generator"
+        category:
+          type: string
+          enum: [keyword, url]
+        article_category:
+          type: string
+          enum: [generative, rephrase, outliner, manual]
+        title:
+          type: string
+          example: "Generate engaging blog posts"
+        description:
+          type: string
+          example: "Creates engaging blog content"
+        rabbitmq_worker:
+          type: string
+          example: "blog_post_worker"
+
+    UpdateArticleTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        rabbitmq_worker:
+          type: string
+        status:
+          type: boolean
+
+    ArticleTypeField:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        name:
+          type: string
+          example: "target_keyword"
+        label:
+          type: string
+          example: "Target Keyword"
+        placeholder:
+          type: string
+          example: "Enter your target keyword"
+        field_type:
+          type: string
+          example: "text"
+        required:
+          type: boolean
+          example: true
+        status:
+          type: boolean
+          example: true
+
+    ArticleAnalytics:
+      type: object
+      properties:
+        total_articles:
+          type: integer
+          example: 156
+        published_articles:
+          type: integer
+          example: 142
+        draft_articles:
+          type: integer
+          example: 14
+        articles_this_period:
+          type: integer
+          example: 25
+        average_word_count:
+          type: integer
+          example: 1200
+        total_views:
+          type: integer
+          example: 15420
+        total_clicks:
+          type: integer
+          example: 3250
+        average_ctr:
+          type: number
+          format: float
+          example: 2.5
+        top_performing_articles:
+          type: array
+          items:
+            type: object
+            properties:
+              article_id:
+                type: string
+                format: uuid
+              title:
+                type: string
+              views:
+                type: integer
+              clicks:
+                type: integer
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        pages:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"domain_id": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

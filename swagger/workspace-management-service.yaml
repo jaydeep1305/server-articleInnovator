@@ -1,0 +1,711 @@
+openapi: 3.0.3
+info:
+  title: Workspace Management Service API
+  description: |
+    Microservice responsible for workspace lifecycle management, user assignments, and workspace analytics.
+    Handles workspace creation, updates, user relationships, and provides workspace statistics.
+    Based on exact Django model schemas from apiApp/models.py
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5002/api/v1
+    description: Development server
+  - url: https://api.company.com/workspace-management/v1
+    description: Production server
+
+tags:
+  - name: Workspaces
+    description: Workspace management operations
+  - name: Users
+    description: Workspace user management
+  - name: Analytics
+    description: Workspace analytics and statistics
+
+paths:
+  /workspaces:
+    get:
+      tags:
+        - Workspaces
+      summary: List workspaces
+      description: Get paginated list of workspaces with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: Filter by workspace status
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          description: Search in workspace names
+          schema:
+            type: string
+        - name: created_by
+          in: query
+          description: Filter by creator user ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Workspaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workspaces:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Workspace'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Workspaces
+      summary: Create workspace
+      description: Create new workspace
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceRequest'
+      responses:
+        '201':
+          description: Workspace created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          description: Invalid workspace data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Workspace name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workspaces/{workspaceId}:
+    get:
+      tags:
+        - Workspaces
+      summary: Get workspace by ID
+      description: Retrieve specific workspace details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Workspace retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          description: Workspace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Workspaces
+      summary: Update workspace
+      description: Update workspace information
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceRequest'
+      responses:
+        '200':
+          description: Workspace updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          description: Workspace not found
+        '409':
+          description: Workspace name already exists
+
+    delete:
+      tags:
+        - Workspaces
+      summary: Delete workspace
+      description: Soft delete workspace (set status to false)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Workspace deleted successfully
+        '404':
+          description: Workspace not found
+
+  /workspaces/{workspaceId}/users:
+    get:
+      tags:
+        - Users
+      summary: Get workspace users
+      description: Get all users assigned to workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: role_id
+          in: query
+          description: Filter by user role
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter by user status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Workspace users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkspaceUser'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Users
+      summary: Add users to workspace
+      description: Assign multiple users to workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_ids
+              properties:
+                user_ids:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 2, 3]
+                  description: "Array of user_detail IDs to add to workspace"
+      responses:
+        '200':
+          description: Users added to workspace successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Users successfully added to workspace"
+                  added_users:
+                    type: array
+                    items:
+                      type: integer
+                    example: [1, 2, 3]
+
+  /workspaces/{workspaceId}/users/{userId}:
+    delete:
+      tags:
+        - Users
+      summary: Remove user from workspace
+      description: Remove user assignment from workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            description: "user_detail ID"
+      responses:
+        '204':
+          description: User removed from workspace successfully
+        '404':
+          description: User or workspace not found
+
+  /workspaces/{workspaceId}/stats:
+    get:
+      tags:
+        - Analytics
+      summary: Get workspace statistics
+      description: Retrieve workspace analytics and usage statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: period
+          in: query
+          description: Statistics period
+          schema:
+            type: string
+            enum: [week, month, quarter, year]
+            default: month
+      responses:
+        '200':
+          description: Workspace statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceStats'
+
+  /workspaces/{workspaceId}/activity:
+    get:
+      tags:
+        - Analytics
+      summary: Get workspace activity log
+      description: Retrieve recent activities in workspace
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: activity_type
+          in: query
+          description: Filter by activity type
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          description: Filter by user ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Workspace activity retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkspaceActivity'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /workspaces/by-user/{userId}:
+    get:
+      tags:
+        - Users
+      summary: Get user workspaces
+      description: Get all workspaces assigned to a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            description: "user_detail ID"
+        - name: status
+          in: query
+          description: Filter by workspace status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: User workspaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workspace'
+
+components:
+  schemas:
+    Workspace:
+      type: object
+      description: "workspace model from apiApp/models.py"
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          maxLength: 200
+          example: "Marketing Team"
+          description: "Unique workspace name"
+          default: ""
+        logo:
+          type: string
+          example: "workspace/logo.jpg"
+          description: "FileField upload_to='workspace'"
+          nullable: true
+        status:
+          type: boolean
+          example: true
+          default: true
+        slug_id:
+          type: string
+          maxLength: 100
+          example: "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6"
+          description: "Auto-generated UUID"
+          default: ""
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        updated_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        created_by:
+          type: integer
+          example: 1
+          description: "ForeignKey to User model"
+          nullable: true
+
+    CreateWorkspaceRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          example: "New Marketing Team"
+          description: "Must be unique"
+        logo:
+          type: string
+          format: uri
+          example: "https://example.com/logo.jpg"
+          description: "Logo file URL or upload"
+
+    UpdateWorkspaceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          example: "Updated Marketing Team"
+        logo:
+          type: string
+          format: uri
+          example: "https://example.com/new-logo.jpg"
+        status:
+          type: boolean
+          example: true
+
+    WorkspaceUser:
+      type: object
+      description: "user_detail with workspace relationship"
+      properties:
+        id:
+          type: integer
+          example: 1
+          description: "user_detail ID"
+        user_id:
+          type: integer
+          example: 1
+          description: "Django User ID"
+        full_name:
+          type: string
+          maxLength: 100
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        role_id:
+          type: integer
+          example: 2
+          description: "User role ID"
+        role_name:
+          type: string
+          example: "content_writer"
+        profile_image:
+          type: string
+          example: "user/profile.jpg"
+        status:
+          type: boolean
+          example: true
+        article_limitation:
+          type: integer
+          example: 1000
+        domain_limitation:
+          type: integer
+          example: 10
+        workspace_limitation:
+          type: integer
+          example: 10
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    WorkspaceStats:
+      type: object
+      properties:
+        workspace_id:
+          type: integer
+          example: 1
+        workspace_name:
+          type: string
+          example: "Marketing Team"
+        total_users:
+          type: integer
+          example: 15
+        active_users:
+          type: integer
+          example: 12
+        total_domains:
+          type: integer
+          example: 5
+        total_articles:
+          type: integer
+          example: 245
+        articles_this_period:
+          type: integer
+          example: 45
+        published_articles:
+          type: integer
+          example: 200
+        draft_articles:
+          type: integer
+          example: 45
+        total_ai_requests:
+          type: integer
+          example: 1250
+        ai_requests_this_period:
+          type: integer
+          example: 180
+        storage_used_mb:
+          type: number
+          format: float
+          example: 1024.5
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        last_activity:
+          type: string
+          format: date-time
+          example: "2024-01-20T15:30:00Z"
+
+    WorkspaceActivity:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        workspace_id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 1
+        user_name:
+          type: string
+          example: "John Doe"
+        activity_type:
+          type: string
+          example: "article_created"
+        activity_description:
+          type: string
+          example: "Created new article 'SEO Best Practices'"
+        resource_type:
+          type: string
+          example: "article"
+        resource_id:
+          type: integer
+          example: 123
+        metadata:
+          type: object
+          example: {"article_title": "SEO Best Practices", "status": "draft"}
+        created_date:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 100
+        pages:
+          type: integer
+          example: 5
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"name": ["This field is required"]}
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unauthorized"
+            message: "Authentication token is missing or invalid"
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "You don't have permission to perform this action"
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "NotFound"
+            message: "The requested resource was not found"
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "ValidationError"
+            message: "Input validation failed"
+            details:
+              name: ["Workspace name already exists"]

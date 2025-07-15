@@ -1,0 +1,967 @@
+openapi: 3.0.3
+info:
+  title: Logging Service API
+  description: |
+    Microservice responsible for centralized logging, audit trails, and system monitoring.
+    This service handles log collection, storage, querying, and analysis.
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@company.com
+
+servers:
+  - url: http://localhost:5009/api/v1
+    description: Development server
+  - url: https://api.company.com/logging/v1
+    description: Production server
+
+tags:
+  - name: Logs
+    description: Log management and querying
+  - name: Audit
+    description: Audit trail operations
+  - name: Metrics
+    description: System metrics and performance
+  - name: Health
+    description: Service health monitoring
+
+paths:
+  /logs:
+    get:
+      tags:
+        - Logs
+      summary: Query logs
+      description: Search and filter logs with pagination
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: query
+          description: Filter by service name
+          schema:
+            type: string
+            enum: [user-management, workspace-management, domain-management, article-management, ai-configuration, image-generation, monitoring, notification]
+            example: "article-management"
+        - name: level
+          in: query
+          description: Filter by log level
+          schema:
+            type: string
+            enum: [DEBUG, INFO, WARNING, ERROR, CRITICAL]
+            example: "ERROR"
+        - name: user_id
+          in: query
+          description: Filter by user ID
+          schema:
+            type: string
+            format: uuid
+        - name: workspace_id
+          in: query
+          description: Filter by workspace
+          schema:
+            type: string
+            format: uuid
+        - name: domain_id
+          in: query
+          description: Filter by domain
+          schema:
+            type: string
+            format: uuid
+        - name: start_time
+          in: query
+          description: Start time for log search (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-15T00:00:00Z"
+        - name: end_time
+          in: query
+          description: End time for log search (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+            example: "2024-01-15T23:59:59Z"
+        - name: search
+          in: query
+          description: Search in log messages
+          schema:
+            type: string
+            example: "database connection failed"
+        - name: correlation_id
+          in: query
+          description: Filter by correlation ID
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: sort
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LogEntry'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  aggregations:
+                    type: object
+                    properties:
+                      total_count:
+                        type: integer
+                        example: 1250
+                      error_count:
+                        type: integer
+                        example: 25
+                      warning_count:
+                        type: integer
+                        example: 45
+
+    post:
+      tags:
+        - Logs
+      summary: Create log entry
+      description: Submit a new log entry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLogRequest'
+      responses:
+        '201':
+          description: Log entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogEntry'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /logs/bulk:
+    post:
+      tags:
+        - Logs
+      summary: Submit multiple log entries
+      description: Bulk insert log entries for better performance
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - logs
+              properties:
+                logs:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateLogRequest'
+                  maxItems: 1000
+      responses:
+        '201':
+          description: Log entries created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inserted_count:
+                    type: integer
+                    example: 250
+                  failed_count:
+                    type: integer
+                    example: 0
+
+  /logs/{log_id}:
+    get:
+      tags:
+        - Logs
+      summary: Get log entry by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: log_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Log entry retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogEntry'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /audit:
+    get:
+      tags:
+        - Audit
+      summary: Query audit logs
+      description: Search audit trail with filtering
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          description: Filter by action type
+          schema:
+            type: string
+            enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT, PUBLISH, GENERATE]
+        - name: resource_type
+          in: query
+          description: Filter by resource type
+          schema:
+            type: string
+            enum: [user, workspace, domain, article, prompt, template]
+        - name: resource_id
+          in: query
+          description: Filter by specific resource ID
+          schema:
+            type: string
+            format: uuid
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: ip_address
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  audit_logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Audit
+      summary: Create audit log entry
+      description: Record an audit event
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuditLogRequest'
+      responses:
+        '201':
+          description: Audit log created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+
+  /metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Get system metrics
+      description: Retrieve system performance metrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: metric_type
+          in: query
+          description: Type of metrics to retrieve
+          schema:
+            type: string
+            enum: [performance, error_rate, request_count, response_time]
+        - name: service
+          in: query
+          description: Filter by service
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: interval
+          in: query
+          description: Aggregation interval
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h, 6h, 24h]
+            default: 1h
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /metrics/errors:
+    get:
+      tags:
+        - Metrics
+      summary: Get error statistics
+      description: Retrieve error rate and statistics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service
+          in: query
+          schema:
+            type: string
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: Error statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_errors:
+                    type: integer
+                    example: 125
+                  error_rate:
+                    type: number
+                    format: float
+                    example: 2.5
+                  top_errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message:
+                          type: string
+                        count:
+                          type: integer
+                        service:
+                          type: string
+                  error_trends:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp:
+                          type: string
+                          format: date-time
+                        count:
+                          type: integer
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Get service health status
+      description: Retrieve health status of all services
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Health status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  overall_status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                    example: "healthy"
+                  services:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceHealth'
+                  last_updated:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+
+  /health/{service_name}:
+    get:
+      tags:
+        - Health
+      summary: Get specific service health
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service_name
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [user-management, workspace-management, domain-management, article-management, ai-configuration, image-generation, monitoring, notification]
+      responses:
+        '200':
+          description: Service health retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceHealth'
+
+    post:
+      tags:
+        - Health
+      summary: Update service health status
+      description: Report health status for a service
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: service_name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHealthRequest'
+      responses:
+        '200':
+          description: Health status updated successfully
+
+  /analytics/summary:
+    get:
+      tags:
+        - Metrics
+      summary: Get analytics summary
+      description: Get summary of log analytics and system performance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: 24h
+      responses:
+        '200':
+          description: Analytics summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsSummary'
+
+components:
+  schemas:
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00.123Z"
+        level:
+          type: string
+          enum: [DEBUG, INFO, WARNING, ERROR, CRITICAL]
+          example: "ERROR"
+        service:
+          type: string
+          example: "article-management"
+        message:
+          type: string
+          example: "Failed to connect to database"
+        logger:
+          type: string
+          example: "article_service.database"
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        workspace_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        domain_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        correlation_id:
+          type: string
+          format: uuid
+          example: "987fcdeb-51a2-43d1-b789-456789abcdef"
+        request_id:
+          type: string
+          format: uuid
+          example: "456789ab-cdef-1234-5678-9abcdef01234"
+        ip_address:
+          type: string
+          example: "192.168.1.100"
+        user_agent:
+          type: string
+          example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        metadata:
+          type: object
+          description: Additional contextual data
+          example: {"function": "create_article", "execution_time_ms": 1250, "error_code": "DB_CONNECTION_FAILED"}
+        stack_trace:
+          type: string
+          description: Stack trace for errors
+          example: "Traceback (most recent call last):\\n  File..."
+
+    CreateLogRequest:
+      type: object
+      required:
+        - level
+        - service
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: If not provided, current time will be used
+        level:
+          type: string
+          enum: [DEBUG, INFO, WARNING, ERROR, CRITICAL]
+        service:
+          type: string
+          example: "article-management"
+        message:
+          type: string
+          example: "Article generation completed successfully"
+        logger:
+          type: string
+          example: "article_service.generator"
+        user_id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        domain_id:
+          type: string
+          format: uuid
+        correlation_id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        metadata:
+          type: object
+        stack_trace:
+          type: string
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        user_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        action:
+          type: string
+          enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT, PUBLISH, GENERATE, VIEW, DOWNLOAD]
+          example: "CREATE"
+        resource_type:
+          type: string
+          enum: [user, workspace, domain, article, prompt, template, configuration]
+          example: "article"
+        resource_id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        resource_name:
+          type: string
+          example: "SEO Best Practices Article"
+        old_values:
+          type: object
+          description: Previous values before change
+          example: {"status": "draft", "title": "Old Title"}
+        new_values:
+          type: object
+          description: New values after change
+          example: {"status": "published", "title": "New Title"}
+        ip_address:
+          type: string
+          example: "192.168.1.100"
+        user_agent:
+          type: string
+          example: "Mozilla/5.0..."
+        session_id:
+          type: string
+          format: uuid
+          example: "456789ab-cdef-1234-5678-9abcdef01234"
+        success:
+          type: boolean
+          example: true
+        error_message:
+          type: string
+          example: "Permission denied"
+        additional_data:
+          type: object
+          description: Additional context data
+          example: {"workspace_id": "123e4567-e89b-12d3-a456-426614174000"}
+
+    CreateAuditLogRequest:
+      type: object
+      required:
+        - user_id
+        - action
+        - resource_type
+        - resource_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT, PUBLISH, GENERATE, VIEW, DOWNLOAD]
+        resource_type:
+          type: string
+          enum: [user, workspace, domain, article, prompt, template, configuration]
+        resource_id:
+          type: string
+          format: uuid
+        resource_name:
+          type: string
+        old_values:
+          type: object
+        new_values:
+          type: object
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        session_id:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+          default: true
+        error_message:
+          type: string
+        additional_data:
+          type: object
+
+    MetricsResponse:
+      type: object
+      properties:
+        metric_type:
+          type: string
+          example: "response_time"
+        service:
+          type: string
+          example: "article-management"
+        time_range:
+          type: object
+          properties:
+            start_time:
+              type: string
+              format: date-time
+            end_time:
+              type: string
+              format: date-time
+        data_points:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              value:
+                type: number
+                format: float
+              count:
+                type: integer
+        aggregations:
+          type: object
+          properties:
+            avg:
+              type: number
+              format: float
+            min:
+              type: number
+              format: float
+            max:
+              type: number
+              format: float
+            p95:
+              type: number
+              format: float
+            p99:
+              type: number
+              format: float
+
+    ServiceHealth:
+      type: object
+      properties:
+        service_name:
+          type: string
+          example: "article-management"
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: "healthy"
+        last_check:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+        response_time_ms:
+          type: integer
+          example: 150
+        error_rate:
+          type: number
+          format: float
+          example: 0.5
+        uptime_percentage:
+          type: number
+          format: float
+          example: 99.8
+        dependencies:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "database"
+              status:
+                type: string
+                enum: [healthy, unhealthy]
+              response_time_ms:
+                type: integer
+        alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                type: string
+                enum: [warning, critical]
+              message:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+
+    UpdateHealthRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        response_time_ms:
+          type: integer
+        error_rate:
+          type: number
+          format: float
+        dependencies:
+          type: array
+          items:
+            type: object
+        alerts:
+          type: array
+          items:
+            type: object
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        period:
+          type: string
+          example: "24h"
+        total_logs:
+          type: integer
+          example: 125000
+        total_errors:
+          type: integer
+          example: 250
+        total_warnings:
+          type: integer
+          example: 1200
+        error_rate:
+          type: number
+          format: float
+          example: 0.2
+        top_services_by_logs:
+          type: array
+          items:
+            type: object
+            properties:
+              service:
+                type: string
+              log_count:
+                type: integer
+        top_errors:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              count:
+                type: integer
+              services:
+                type: array
+                items:
+                  type: string
+        performance_summary:
+          type: object
+          properties:
+            avg_response_time:
+              type: number
+              format: float
+            total_requests:
+              type: integer
+            success_rate:
+              type: number
+              format: float
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 100
+        total:
+          type: integer
+          example: 1250
+        pages:
+          type: integer
+          example: 13
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        message:
+          type: string
+          example: "The provided data is invalid"
+        details:
+          type: object
+          example: {"level": ["This field is required"]}
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ForbiddenError:
+      description: Insufficient permissions to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
