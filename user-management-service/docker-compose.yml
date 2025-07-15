@@ -1,0 +1,242 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: user_management_db
+    environment:
+      POSTGRES_DB: user_management_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - user_management_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: user_management_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./docker/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - user_management_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # User Management Service (Development)
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: user_management_service
+    environment:
+      # Flask Configuration
+      FLASK_ENV: development
+      SECRET_KEY: dev-secret-key-change-in-production
+      JWT_SECRET_KEY: dev-jwt-secret-key
+      
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: user_management_dev
+      
+      # RabbitMQ Configuration
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+      RABBITMQ_VHOST: /
+      RABBITMQ_EXCHANGE: events
+      
+      # Service Configuration
+      HOST: 0.0.0.0
+      PORT: 5000
+      LOG_LEVEL: DEBUG
+      
+      # Rate Limiting
+      RATE_LIMIT_STORAGE_URL: redis://redis:6379/0
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app:/app/app:ro
+      - ./config.py:/app/config.py:ro
+      - ./run.py:/app/run.py:ro
+      - app_logs:/app/logs
+    networks:
+      - user_management_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: sync
+          path: ./config.py
+          target: /app/config.py
+        - action: rebuild
+          path: ./requirements.txt
+
+  # Redis (for rate limiting and caching)
+  redis:
+    image: redis:7-alpine
+    container_name: user_management_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/etc/redis/redis.conf:ro
+    command: redis-server /etc/redis/redis.conf
+    networks:
+      - user_management_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # pgAdmin (Database Management UI)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: user_management_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - user_management_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    profiles:
+      - tools
+
+  # Nginx (Load Balancer/Reverse Proxy)
+  nginx:
+    image: nginx:alpine
+    container_name: user_management_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - user_management_network
+    depends_on:
+      - user-service
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Prometheus (Metrics Collection)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: user_management_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - user_management_network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Grafana (Metrics Visualization)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: user_management_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - user_management_network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+# Network Configuration
+networks:
+  user_management_network:
+    driver: bridge
+    name: user_management_network
+
+# Volume Configuration
+volumes:
+  postgres_data:
+    name: user_management_postgres_data
+  rabbitmq_data:
+    name: user_management_rabbitmq_data
+  redis_data:
+    name: user_management_redis_data
+  pgadmin_data:
+    name: user_management_pgadmin_data
+  app_logs:
+    name: user_management_app_logs
+  nginx_logs:
+    name: user_management_nginx_logs
+  prometheus_data:
+    name: user_management_prometheus_data
+  grafana_data:
+    name: user_management_grafana_data
