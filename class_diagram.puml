@@ -1,422 +1,92 @@
-@startuml Article Innovator Class Diagram
+@startuml Article Innovator Class-Based Components
 
 !theme plain
 skinparam backgroundColor white
-skinparam classBackgroundColor white
+skinparam classBackgroundColor white  
 skinparam classBorderColor black
 
-package "User Management" {
-    class User {
-        +id: AutoField
-        +username: CharField
-        +email: EmailField
-        +password: CharField
-        +first_name: CharField
-        +last_name: CharField
-        +is_active: BooleanField
-        +date_joined: DateTimeField
+package "Middleware Classes" {
+    class AccessControlMiddleware {
+        +get_response: callable
+        +jwt_authenticator: JWTAuthentication
+        --
+        +__init__(get_response)
+        +__call__(request): HttpResponse
+        +authenticate_user(request): tuple
     }
 
-    class role {
-        +id: AutoField
-        +name: CharField [unique]
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
+    class RateLimitMiddleware {
+        +RATE_LIMIT: int = 1000
+        +TIME_WINDOW: int = 60
+        +BAN_DURATION: int = 86400
+        +get_response: callable
+        --
+        +__init__(get_response)
+        +__call__(request): HttpResponse
     }
 
-    class permission {
-        +id: AutoField
-        +name: CharField
-        +description: CharField
-        +group: CharField
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
-    }
-
-    class user_detail {
-        +id: AutoField
-        +user_id: ForeignKey
-        +role_id: ForeignKey
-        +workspace_id: ManyToManyField
-        +article_limitation: IntegerField
-        +domain_limitation: IntegerField
-        +workspace_limitation: IntegerField
-        +full_name: CharField
-        +profile_image: ImageField
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +save()
-        +__str__(): string
+    class ActivityLogMiddleware {
+        +get_response: callable
+        --
+        +__init__(get_response)
+        +__call__(request): HttpResponse
+        +process_request(request): void
+        +process_response(request, response): HttpResponse
     }
 }
 
-package "Workspace System" {
-    class workspace {
-        +id: AutoField
-        +name: CharField [unique]
-        +logo: FileField
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +save()
-        +__str__(): string
+package "Service Classes" {
+    class ImageGenerator {
+        --
+        +get_all_templates_by_tags(json_data): dict
+        +create_circular_templates_info(templates_info, number): list
+        +create_circular_keywords(keyword_with_original_image_url, template_image_count): list
+        +upload_image_to_imagekit(original_image_url, keyword, workspace_id): string
+        +get_imagekit_urls(keyword, original_image_url, workspace_id): string
+        +generate_image(template_file_name): string
+        +process_template(template, keyword_with_original_image_url, used_orignal_image_url, workspace_id): string
+        +process_template_done(generated_images): callable
     }
 
-    class ai_configuration {
-        +id: AutoField
-        +workspace_id: ForeignKey
-        +email: CharField
-        +api_provider: CharField
-        +api_type: CharField
-        +api_version: CharField
-        +api_url: CharField
-        +api_key: CharField
-        +api_model: CharField
-        +ai_rate_key_id: CharField
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +save()
-        +__str__(): string
+    class AIProvider {
+        +api_key: string
+        +api_url: string
+        +model: string
+        +client: OpenAI
+        --
+        +__init__()
+        +extract_selectors(html_content, domain): dict
+        -_get_fallback_selectors(): dict
     }
 }
 
-package "Domain & WordPress" {
-    class domain {
-        +id: AutoField
-        +manager_id: ManyToManyField
-        +writer_id: ManyToManyField
-        +name: CharField [unique]
-        +wordpress_username: CharField
-        +wordpress_application_password: CharField
-        +permalinks: CharField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +workspace_id: ForeignKey
-        +created_by: ForeignKey
-        +save()
-        +__str__(): string
-    }
-
-    class wp_tag {
-        +id: AutoField
-        +domain_id: ForeignKey
-        +name: CharField
-        +slug: CharField
-        +description: CharField
-        +wp_tag_id: CharField
-        +workspace_id: ForeignKey
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +derived_by: CharField
-        +save()
-        +__str__(): string
-    }
-
-    class wp_category {
-        +id: AutoField
-        +domain_id: ForeignKey
-        +name: CharField
-        +slug: CharField
-        +description: CharField
-        +wp_cat_id: CharField
-        +workspace_id: ForeignKey
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +derived_by: CharField
-        +default_section: BooleanField
-        +save()
-        +__str__(): string
-    }
-
-    class wp_author {
-        +id: AutoField
-        +domain_id: ForeignKey
-        +username: CharField
-        +author_password: CharField
-        +first_name: CharField
-        +last_name: CharField
-        +email: CharField
-        +bio: CharField
-        +wp_author_id: CharField
-        +workspace_id: ForeignKey
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +profile_image: ImageField
-        +created_by: ForeignKey
-        +derived_by: CharField
-        +default_section: BooleanField
-        +save()
-        +__str__(): string
+package "Utility Classes" {
+    class Handler {
+        --
+        +__init__()
+        +log_to_database(message): void
     }
 }
 
-package "Article System" {
-    class article_type {
-        +id: AutoField
-        +article_type_field_id: ManyToManyField
-        +color_detail_id: ForeignKey
-        +name: CharField
-        +category: CharField
-        +article_type_image: ImageField
-        +article_category: CharField
-        +title: CharField
-        +description: CharField
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +rabbitmq_worker: CharField
-        +save()
-        +__str__(): string
+package "Configuration Classes" {
+    class ApiappConfig {
+        +default_auto_field: string
+        +name: string
+        --
+        +ready(): void
     }
 
-    class prompt {
-        +id: AutoField
-        +article_type_id: ForeignKey
-        +workspace_id: ForeignKey
-        +name: CharField
-        +ai_rate_model: CharField
-        +prompt_data: JSONField
-        +supportive_prompt_json_data: JSONField
-        +status: BooleanField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +save()
-        +__str__(): string
-    }
-
-    class article {
-        +id: AutoField
-        +prompt_id: ForeignKey
-        +article_type_id: ForeignKey
-        +domain_id: ForeignKey
-        +wp_author_id: ForeignKey
-        +wp_category_id: ManyToManyField
-        +wp_tag_id: ManyToManyField
-        +workspace_id: ForeignKey
-        +wp_title: CharField
-        +wp_post_id: CharField
-        +wp_excerpt: CharField
-        +wp_modified_date: CharField
-        +keyword: CharField
-        +url: CharField
-        +wp_slug: CharField
-        +wp_content: CharField
-        +meta_description: CharField
-        +meta_tag: CharField
-        +meta_keyword: CharField
-        +wp_featured_image: CharField
-        +wp_status: CharField
-        +article_status: CharField
-        +wp_schedule_time: DateTimeField
-        +slug_id: CharField
-        +ai_content_flags: JSONField
-        +article_priority: IntegerField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +created_by: ForeignKey
-        +save()
-        +__str__(): string
-    }
-
-    class article_info {
-        +id: AutoField
-        +article_id: ForeignKey
-        +custom_fields: JSONField
-        +word_count: IntegerField
-        +image_count: IntegerField
-        +heading_count: IntegerField
-        +total_paragraphs: IntegerField
-        +long_paragraphs: IntegerField
-        +medium_paragraphs: IntegerField
-        +short_paragraphs: IntegerField
-        +total_sentences: IntegerField
-        +long_sentences: IntegerField
-        +medium_sentences: IntegerField
-        +short_sentences: IntegerField
-        +passive_sentences: IntegerField
-        +slug_id: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
+    class FrontendappConfig {
+        +default_auto_field: string
+        +name: string
+        --
+        +ready(): void
     }
 }
 
-package "Competitor Analysis" {
-    class competitor {
-        +id: AutoField
-        +slug_id: CharField
-        +competitor_domain_name: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
-    }
-
-    class competitor_domain_mapping {
-        +id: AutoField
-        +slug_id: CharField
-        +domain_id: CharField
-        +workspace_id: CharField
-        +wp_status: CharField
-        +article_status: CharField
-        +wp_schedule_time: DateTimeField
-        +article_priority: IntegerField
-        +ai_content_flags: JSONField
-        +wp_author: CharField
-        +wp_category: JSONField
-        +wp_tag: JSONField
-        +prompt: JSONField
-        +article_type: JSONField
-        +domain: JSONField
-        +workspace: JSONField
-        +competitor_id: ForeignKey
-        +competitor_type: CharField
-        +interval: IntegerField
-        +interval_unit: CharField
-        +created_by: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
-    }
-
-    class competitor_selected_url {
-        +id: AutoField
-        +slug_id: CharField
-        +competitor_id: ForeignKey
-        +selected_url: URLField
-        +competitor_domain_mapping_id: ForeignKey
-        +monitor_enabled: BooleanField
-        +last_api_call_at: DateTimeField
-        +next_api_call_at: DateTimeField
-        +start_time: DateTimeField
-        +end_time: DateTimeField
-        +scrap_status: CharField
-        +responses_status_code: IntegerField
-        +extraction_method: CharField
-        +check_method: CharField
-        +proxy: CharField
-        +created_by: CharField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
-    }
-
-    class competitor_article_url {
-        +id: AutoField
-        +slug_id: CharField
-        +article_url: URLField
-        +competitor_selected_url_id: ForeignKey
-        +competitor_domain_mapping_id: ForeignKey
-        +delivery_status: CharField
-        +last_modified_date: DateTimeField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +save()
-        +__str__(): string
-    }
-
-    class competitor_url_daily_stats {
-        +id: AutoField
-        +slug_id: CharField
-        +competitor_selected_url_id: ForeignKey
-        +stat_date: DateField
-        +total_runs: IntegerField
-        +successful_runs: IntegerField
-        +failed_runs: IntegerField
-        +total_articles_found: IntegerField
-        +new_articles_added: IntegerField
-        +duplicate_articles_skipped: IntegerField
-        +total_response_time_ms: BigIntegerField
-        +fastest_response_ms: IntegerField
-        +slowest_response_ms: IntegerField
-        +last_error_message: TextField
-        +error_count: IntegerField
-        +first_run_at: DateTimeField
-        +last_run_at: DateTimeField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +success_rate: property
-        +avg_response_time_ms: property
-        +save()
-        +__str__(): string
-    }
-}
-
-package "AI Message Service" {
-    class ai_message {
-        +id: AutoField
-        +article_id: CharField
-        +message_id: CharField
-        +article_message_count: IntegerField
-        +article_message_total_count: IntegerField
-        +ai_request: TextField
-        +ai_response: TextField
-        +ai_response_status: CharField
-        +ai_request_status: CharField
-        +message_field_type: CharField
-        +message_priority: IntegerField
-        +retry_count: IntegerField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +__str__(): string
-    }
-
-    class input_json {
-        +id: AutoField
-        +article_id: CharField
-        +input_json_data: JSONField
-        +created_date: DateTimeField
-        +updated_date: DateTimeField
-        +__str__(): string
-    }
-}
-
-' Core Relationships
-User ||--o{ user_detail : "has profile"
-role ||--o{ user_detail : "assigned to"
-workspace ||--o{ user_detail : "belongs to"
-workspace ||--o{ ai_configuration : "configured with"
-workspace ||--o{ domain : "contains"
-domain ||--o{ wp_tag : "has"
-domain ||--o{ wp_category : "has"
-domain ||--o{ wp_author : "has"
-article_type ||--o{ article : "generates"
-article_type ||--o{ prompt : "uses"
-prompt ||--o{ article : "creates"
-domain ||--o{ article : "publishes"
-workspace ||--o{ article : "manages"
-article ||--|| article_info : "has details"
-competitor ||--o{ competitor_domain_mapping : "mapped to"
-competitor ||--o{ competitor_selected_url : "monitors"
-competitor_selected_url ||--o{ competitor_article_url : "discovers"
-competitor_selected_url ||--|| competitor_url_daily_stats : "tracked by"
+' Relationships
+AccessControlMiddleware --> RateLimitMiddleware : middleware chain
+ActivityLogMiddleware --> Handler : logging
+ImageGenerator --> AIProvider : AI processing
 
 @enduml
